@@ -1,0 +1,1055 @@
+/* Color Variables */
+:root {
+  --color-primary: #6c5ce7; /* Soft Purple */
+  --color-primary-dark: #5a4cb3; /* Darker Purple for hover */
+  --color-secondary: #a29bfe; /* Light Purple/Blue */
+  --color-secondary-dark: #8c83e7; /* Darker Light Purple/Blue for hover */
+  --color-success: #00b894; /* Teal Green */
+  --color-success-dark: #00997a; /* Darker Teal Green for hover */
+  --color-danger: #ff7675; /* Soft Red */
+  --color-danger-dark: #e66060; /* Darker Soft Red for hover */
+  --color-warning: #fdcb6e; /* Soft Orange/Yellow */
+  --color-info: #0984e3; /* Brighter Blue */
+  --color-light-gray: rgba(255, 255, 255, 0.8); /* Translucent White for cards */
+  --color-medium-light-gray: rgba(255, 255, 255, 0.5); /* Lighter translucent for radio backgrounds */
+  --color-medium-gray: #e0e0e0; /* Medium gray for progress bar background */
+  --color-dark-gray: #333; /* Dark text color */
+  --color-heading: #2d3436; /* Darker text for headings */
+  --color-text: #4a4a4a; /* Main text color */
+  --color-background-light: #f4f7f9; /* Body background (will be overridden by gradient) */
+  --color-white: #fff; /* White */
+  --color-border-light: rgba(255, 255, 255, 0.3); /* Lighter border for headings */
+  --color-shadow-light: rgba(0, 0, 0, 0.05); /* Very soft shadow */
+  --color-shadow-medium: rgba(0, 0, 0, 0.1); /* Medium shadow */
+  --color-qr-border: rgba(0, 0, 0, 0.15); /* Border for QR code container */
+}
+
+/* Base styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-text);
+  font-family: "Inter", sans-serif; /* Using Inter font */
+}
+
+body {
+  /* Нейтральный, спокойный градиентный фон */
+  /* background: linear-gradient(135deg, #dfe7f6 0%, #dfebfd 100%); */
+  background: hsla(18, 76%, 85%, 1);
+
+  background: linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
+
+  background: -moz-linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
+
+  background: -webkit-linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
+
+  filter: progid: DXImageTransform.Microsoft.gradient( startColorstr="#F6CFBE", endColorstr="#B9DCF2", GradientType=1 );
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 28vh;
+}
+
+/* --- Стили для страницы авторизации (login.hbs) --- */
+body.login-page {
+  /* Используем класс body.login-page для стилизации только страницы входа */
+  display: flex; /* Переопределяем flex-direction: column; на align-items: center; */
+  flex-direction: row; /* Для центрирования по вертикали */
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 0; /* Убираем нижний отступ, специфичный для дашборда */
+  padding: 20px; /* Общий отступ для адаптивности */
+}
+
+.login-container {
+  width: 100%;
+  max-width: 600px; /* Немного шире, чем QR-модал, для лучшего вида */
+}
+
+.login-container h2 {
+  font-size: 2.2em;
+  color: var(--color-heading);
+  margin-bottom: 30px; /* Увеличенный отступ */
+  font-weight: 700;
+  text-shadow: 1px 1px 2px var(--color-shadow-light);
+  text-align: center;
+}
+
+.login-container form {
+  background-color: var(--color-light-gray); /* Полупрозрачный фон из ваших стилей */
+  border-radius: 20px; /* Сильнее закругленные углы */
+  padding: 40px; /* Увеличенный паддинг */
+  box-shadow: 0 10px 30px var(--color-shadow-medium); /* Более выраженная мягкая тень */
+  backdrop-filter: blur(6px); /* Эффект "матового стекла" */
+  border: 1px solid rgba(255, 255, 255, 0.3); /* Тонкая светлая обводка */
+  text-align: center;
+  animation: fadeIn 0.5s ease-out; /* Анимация появления */
+  display: flex; /* Для управления элементами формы */
+  flex-direction: column;
+  gap: 20px; /* Отступ между группами ввода */
+}
+#phone,
+#password {
+  background-color: #f7f7f7;
+}
+
+.login-container button {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.form-group {
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--color-heading);
+  font-weight: 500;
+  font-size: 0.95em;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"] {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 12px; /* Закругленные углы */
+  background-color: rgba(255, 255, 255, 0.9); /* Почти белый фон */
+  font-size: 1em;
+  color: var(--color-text);
+  box-shadow: inset 0 1px 3px var(--color-shadow-light);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+}
+
+.error-message {
+  background-color: var(--color-danger);
+  color: var(--color-white);
+  padding: 10px 15px;
+  border-radius: 10px;
+  margin-bottom: 0; /* Уже есть gap в форме */
+  font-size: 0.95em;
+  box-shadow: 0 2px 8px rgba(255, 118, 117, 0.3);
+}
+
+/* Кнопка Войти - используем ваши общие стили для кнопок */
+/* Стили для .btn уже есть в файле, просто убедимся, что они применяются */
+.btn {
+  padding: 12px 25px;
+  border: none;
+  border-radius: 12px; /* Закругленные */
+  cursor: pointer;
+  font-size: 1.1em; /* Немного крупнее для кнопки логина */
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px var(--color-shadow-medium);
+  margin-top: 10px; /* Отступ от полей ввода/сообщения об ошибке */
+}
+
+/* Стили для .btn-primary уже есть в файле */
+
+.register-link {
+  margin-top: 25px;
+  font-size: 0.95em;
+  color: var(--color-dark-gray);
+  text-align: center;
+}
+
+.register-link a {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.register-link a:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+/* Адаптивность для страницы авторизации */
+@media (max-width: 500px) {
+  .login-container form {
+    padding: 30px 20px; /* Уменьшаем паддинг на маленьких экранах */
+    border-radius: 15px;
+  }
+  .login-container h2 {
+    font-size: 1.8em;
+    margin-bottom: 25px;
+  }
+  .btn {
+    font-size: 1em;
+    padding: 10px 20px;
+  }
+}
+/* --- Конец стилей для страницы авторизации --- */
+
+/* Header */
+.header-container {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.header-container h1 {
+  font-size: 2em;
+  color: var(--color-heading);
+
+  font-weight: 700;
+  text-shadow: 1px 1px 2px var(--color-shadow-light);
+}
+
+.header-btn-group {
+  display: flex;
+  gap: 20px;
+}
+
+.btn.btn-support {
+  position: relative;
+  box-shadow: none;
+  text-decoration: none;
+  color: var(--color-success);
+  margin-top: 0;
+  transition: color 0.3s ease;
+}
+
+.btn.btn-support::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 10px;
+  width: 66%;
+  height: 2px;
+  background-color: var(--color-success);
+  transition: 0.3s ease;
+}
+
+.btn.btn-support:hover {
+  color: var(--color-success-dark);
+}
+
+.btn.btn-support:hover::after {
+  background-color: var(--color-success-dark);
+  width: 0;
+}
+.header-container .btn-logout {
+  background-color: var(--color-white);
+  color: var(--color-danger);
+  padding: 10px 20px;
+  border-radius: 12px; /* Более закругленные */
+  text-decoration: none;
+  font-weight: 600;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  box-shadow: 0 4px 6px var(--color-shadow-medium);
+  margin-top: 0;
+}
+
+.header-container .btn-logout:hover {
+  background-color: var(--color-danger-dark);
+  transform: translateY(-2px);
+}
+
+/* Main Content Area */
+main {
+  width: 100%;
+  max-width: 760px;
+  padding: 0 20px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 25px;
+}
+
+/* Card Styling */
+.card {
+  background-color: var(--color-light-gray); /* Полупрозрачный фон */
+  border-radius: 20px; /* Сильнее закругленные углы */
+  padding: 30px;
+  box-shadow: 0 10px 30px var(--color-shadow-medium); /* Более выраженная мягкая тень */
+  backdrop-filter: blur(6px); /* Эффект "матового стекла" */
+  border: 1px solid rgba(255, 255, 255, 0.3); /* Тонкая светлая обводка */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* .card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+} */
+
+.card h2 {
+  font-size: 1.6em;
+  color: var(--color-heading);
+  margin-bottom: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  background-color: var(--color-white);
+  border-radius: 12px;
+  padding: 4px 10px;
+  width: 100%;
+}
+
+.card p {
+  margin-bottom: 15px;
+  line-height: 1.6;
+}
+
+.card .info-text {
+  font-size: 0.9em;
+  color: var(--color-dark-gray);
+  opacity: 0.8;
+  margin-top: 15px;
+  padding-left: 10px;
+  border-left: 3px solid var(--color-primary);
+}
+
+.card .code-highlight {
+  background-color: rgba(108, 92, 231, 0.1); /* Цвет подсвеченного кода */
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  font-size: 0.9em;
+  color: var(--color-primary);
+}
+
+/* Status Icons */
+.status-icon {
+  font-size: 1.2em;
+  margin-left: 10px;
+  /* Для Font Awesome это были иконки, теперь это будет просто текст или символ */
+  width: 20px; /* Фиксированная ширина для выравнивания */
+  text-align: center;
+}
+
+.status-connected {
+  color: var(--color-success);
+}
+
+.status-disconnected {
+  color: var(--color-danger);
+}
+
+/* Buttons */
+.btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 12px; /* Более закругленные */
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px var(--color-shadow-medium);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px var(--color-shadow-medium);
+}
+
+.btn-stop {
+  background-color: var(--color-danger);
+  color: var(--color-white);
+}
+
+.btn-stop:hover:not(:disabled) {
+  background-color: var(--color-danger-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px var(--color-shadow-medium);
+}
+
+.btn-start {
+  background-color: var(--color-success);
+  color: var(--color-white);
+}
+
+.btn-start:hover:not(:disabled) {
+  background-color: var(--color-success-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px var(--color-shadow-medium);
+}
+
+/* WhatsApp Auth Section */
+.whatsapp-auth-buttons {
+  margin-top: 20px;
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.whatsapp-auth-buttons .btn {
+  flex-grow: 1;
+  min-width: 180px;
+}
+
+/* QR Modal */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.modal.active {
+  display: flex;
+}
+
+.modal-content {
+  background-color: var(--color-light-gray); /* Полупрозрачный фон */
+  padding: 30px;
+  border-radius: 25px; /* Закругленные углы */
+  position: relative;
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 10px 30px var(--color-shadow-medium);
+  backdrop-filter: blur(10px); /* Матовое стекло для модального окна */
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.modal-content h3 {
+  color: var(--color-heading);
+  margin-bottom: 15px;
+  font-size: 1.8em;
+}
+
+.modal-content p {
+  color: var(--color-text);
+  margin-bottom: 20px;
+}
+
+.close-button {
+  position: absolute;
+  top: 15px;
+  right: 25px;
+  color: var(--color-dark-gray);
+  font-size: 30px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.close-button:hover {
+  color: var(--color-danger);
+}
+
+#qr-code-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  min-height: 250px; /* Высота для загрузки QR */
+  background-color: var(--color-white);
+  padding: 15px;
+  border-radius: 15px;
+  box-shadow: inset 0 2px 5px var(--color-shadow-light);
+  border: 1px solid var(--color-qr-border);
+}
+
+#qr-code-container img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+.qr-info {
+  font-size: 0.85em;
+  color: var(--color-dark-gray);
+  opacity: 0.7;
+}
+
+.wa-status-connected {
+  color: var(--color-success);
+}
+.wa-status-disconnected {
+  color: var(--color-danger);
+}
+.wa-status-waiting {
+  color: var(--color-warning);
+}
+.wa-status-connecting {
+  color: var(--color-info);
+}
+
+/* File Upload Section */
+.file-upload-area {
+  border: 2px dashed var(--color-secondary);
+  border-radius: 15px; /* Закругленные */
+  padding: 30px;
+  padding-top: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  margin-top: 15px;
+  background-color: rgba(255, 255, 255, 0.6);
+  background-color: rgba(162, 155, 254, 0.1); /* Легкий эффект при наведении/перетаскивании */
+}
+
+.upload-icon-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 14px;
+}
+.upload-icon {
+  opacity: 0.7;
+  width: 52px;
+}
+
+.file-upload-area:hover,
+.file-upload-area.dragover {
+  background-color: rgba(162, 155, 254, 0.2); /* Легкий эффект при наведении/перетаскивании */
+  border-color: var(--color-primary);
+}
+
+.file-upload-label {
+  display: inline-block;
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  padding: 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  box-shadow: 0 3px 8px var(--color-shadow-medium);
+}
+
+.file-upload-label i {
+  margin-right: 8px;
+}
+
+.file-upload-label:hover {
+  background-color: var(--color-primary-dark);
+  transform: translateY(-1px);
+}
+
+#fileNameDisplay {
+  margin-top: 15px;
+  font-weight: 500;
+  color: var(--color-heading);
+}
+
+.upload-status {
+  margin-top: 20px; /* Отступ сверху */
+  padding: 10px 15px;
+  border-radius: 15px;
+  font-weight: 600;
+  text-align: center;
+  opacity: 0; /* Изначально скрыт */
+  max-height: 0; /* Изначально 0 высота */
+  overflow: hidden; /* Скрываем содержимое */
+  transition: opacity 0.4s ease, max-height 0.4s ease; /* Плавное появление */
+}
+
+.upload-status.visible {
+  opacity: 1;
+  max-height: 100px; /* Достаточная высота для отображения */
+}
+
+.upload-status.success {
+  background-color: rgba(0, 184, 148, 0.1); /* Полупрозрачный зеленый */
+  color: var(--color-success);
+  border: 1px solid rgba(0, 184, 148, 0.3);
+}
+
+.upload-status.error {
+  background-color: rgba(255, 118, 117, 0.1); /* Полупрозрачный красный */
+  color: var(--color-danger);
+  border: 1px solid rgba(255, 118, 117, 0.3);
+}
+
+/* Select Wrapper */
+.select-wrapper {
+  position: relative;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 350px;
+}
+
+.select-wrapper select {
+  width: 100%;
+  padding: 12px 15px;
+  padding-right: 40px; /* Место для стрелки */
+  border: 1px solid var(--color-border-light);
+  border-radius: 15px; /* Закругленные */
+  background-color: rgba(255, 255, 255, 0.7);
+  appearance: none; /* Убрать дефолтную стрелку */
+  font-size: 1em;
+  color: var(--color-text);
+  cursor: pointer;
+  box-shadow: inset 0 1px 3px var(--color-shadow-light);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.select-wrapper select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+}
+
+.select-arrow {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--color-primary);
+  pointer-events: none;
+}
+
+/* Radio Group */
+.option-group {
+  margin-top: 25px;
+}
+
+.option-group h3 {
+  font-size: 1.1em;
+  color: var(--color-heading);
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+.radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px; /* Увеличил отступы */
+}
+
+.radio-group input[type="radio"] {
+  display: none;
+}
+
+.radio-group label {
+  background-color: var(--color-medium-light-gray); /* Светлый полупрозрачный фон */
+  color: var(--color-text);
+  padding: 10px 20px;
+  border-radius: 12px; /* Закругленные */
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 5px var(--color-shadow-light);
+  flex-grow: 1; /* Чтобы кнопки занимали доступное место */
+  text-align: center;
+  min-width: 90px;
+}
+
+.radio-group input[type="radio"]:checked + label {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary-dark);
+  /* box-shadow: 0 4px 10px var(--color-primary-dark); */
+}
+
+.radio-group label:hover {
+  background-color: rgba(162, 155, 254, 0.2); /* Легкий эффект при наведении */
+}
+
+.radio-group input[type="radio"]:checked + label:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.risk-plate {
+  background-color: rgba(253, 203, 110, 0.15); /* Полупрозрачный желтый */
+  color: var(--color-warning);
+  padding: 12px 18px;
+  border-radius: 15px;
+  margin-top: 20px;
+  font-size: 0.9em;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid rgba(253, 203, 110, 0.4);
+}
+
+.risk-plate .icon-warning {
+  /* Иконка предупреждения */
+  color: var(--color-warning);
+  font-size: 1.2em;
+  margin-top: 2px;
+}
+
+/* Message Template */
+textarea {
+  width: 100%;
+  padding: 15px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 15px;
+  background-color: rgba(255, 255, 255, 1);
+  font-size: 1em;
+  color: var(--color-text);
+  resize: vertical;
+  min-height: 200px;
+  box-shadow: inset 0 1px 3px var(--color-shadow-light);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+textarea::placeholder {
+  color: var(--color-dark-gray);
+  opacity: 0.7;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+}
+
+/* Fixed Bottom Bar (Progress & Controls) */
+.fixed-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.9); /* Почти непрозрачный белый */
+  padding: 20px 30px;
+  box-shadow: 0 -5px 20px var(--color-shadow-medium);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  backdrop-filter: blur(10px); /* Матовое стекло */
+  border-top: 1px solid rgba(255, 255, 255, 0.5);
+  z-index: 999;
+  max-width: 1000px;
+}
+
+.fixed-bottom-bar .status-indicator {
+  display: block; /* текст "Статус:" и значение остаются в одной строке */
+  line-height: 1.35;
+}
+.send-info-wrap {
+  font-size: 1.2rem;
+  display: flex;
+  justify-content: center;
+  gap: 5%;
+  width: 100%;
+}
+
+.fixed-bottom-bar .next-send-row {
+  display: block; /* переносим на новую строку */
+  margin-top: 4px;
+  font-size: 0.95em;
+  color: var(--color-dark-gray);
+  opacity: 0.9;
+}
+
+/* 2) Цвета статуса */
+.fixed-bottom-bar #overall-status-text.status-text-ready {
+  color: var(--color-success); /* "Готов" — зелёный */
+}
+
+/* поддержим оба варианта класса для "В процессе" */
+.fixed-bottom-bar #overall-status-text.status-text-running,
+.fixed-bottom-bar #overall-status-text.status-text-sending {
+  color: var(--color-primary); /* "В процессе" — фиолетовый */
+}
+
+/* "Не готов" — когда нет классов ready/running */
+.fixed-bottom-bar
+  .status-indicator
+  #overall-status-text:not(.status-text-ready):not(.status-text-running):not(.status-text-sending) {
+  color: var(--color-danger); /* красный */
+}
+
+.fixed-bottom-bar .bar-title {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+  max-width: 860px; /* Выравнивание по основному контенту */
+  font-size: 1.4em;
+  font-weight: 700;
+  color: var(--color-heading);
+}
+
+.fixed-bottom-bar .status-indicator {
+  font-size: 0.9em;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.fixed-bottom-bar .status-text-ready {
+  color: var(--color-success);
+}
+
+.fixed-bottom-bar .status-text-sending {
+  color: var(--color-primary);
+}
+
+.fixed-bottom-bar .status-text-disconnected {
+  color: var(--color-danger);
+}
+
+.progress-and-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 860px; /* Выравнивание по основному контенту */
+  gap: 20px;
+  flex-wrap: wrap; /* Для адаптивности */
+}
+
+.progress-info {
+  flex-grow: 1;
+  min-width: 300px; /* Чтобы не сжимался слишком сильно */
+}
+
+#progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.progress-bar-wrapper {
+  flex-grow: 1;
+  background-color: var(--color-medium-gray);
+  border-radius: 10px;
+  height: 14px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px var(--color-shadow-light);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background-color: var(--color-primary);
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+#progress-bar-label {
+  font-weight: 600;
+  color: var(--color-heading);
+  min-width: 40px;
+  text-align: right;
+}
+
+.counts-display {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.count-item {
+  text-align: center;
+  flex-basis: calc(25% - 10px); /* 4 элемента в ряд, с учетом gap */
+  min-width: 60px;
+}
+
+.count-item span:first-child {
+  display: block;
+  font-size: 1.4em;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.count-item .count-label {
+  font-size: 0.85em;
+  color: var(--color-dark-gray);
+  opacity: 0.9;
+}
+
+.fixed-bottom-bar .controls {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.fixed-bottom-bar .controls .btn {
+  flex-grow: 1;
+  min-width: 150px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  body {
+    padding-bottom: 46vh;
+  }
+
+  .header-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+    padding: 15px;
+    margin-top: 15px;
+  }
+
+  .header-container h1 {
+    font-size: 1.8em;
+  }
+
+  .header-container .btn-logout {
+    align-self: flex-end; /* Кнопка выйти вправо */
+  }
+
+  main {
+    padding: 0 15px;
+    gap: 20px;
+  }
+
+  .card {
+    padding: 20px;
+    border-radius: 20px;
+  }
+
+  .card h2 {
+    font-size: 1.4em;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+
+  .whatsapp-auth-buttons {
+    flex-direction: column;
+  }
+
+  .file-upload-area {
+    padding: 20px;
+  }
+
+  .select-wrapper {
+    max-width: 100%;
+  }
+
+  .select-wrapper .select-arrow {
+    right: 15px;
+  }
+
+  .radio-group {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .radio-group label {
+    padding: 10px 15px;
+    min-width: unset;
+  }
+
+  .fixed-bottom-bar {
+    padding: 15px 20px;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+    gap: 15px;
+  }
+
+  .fixed-bottom-bar .bar-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 1.2em;
+  }
+
+  .fixed-bottom-bar .status-indicator {
+    font-size: 0.85em;
+  }
+
+  .progress-and-controls {
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  .counts-display {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .count-item {
+    flex-basis: calc(50% - 10px); /* Два элемента в ряд */
+  }
+
+  .fixed-bottom-bar .controls {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  textarea {
+    min-height: 120px;
+  }
+}
+
+/* Busy (campaign) state */
+body.campaign-active main {
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.2s ease;
+}
+
+/* Оставляем хедер и нижнюю панель активными и непрозрачными */
+body.campaign-active .header-container,
+body.campaign-active .fixed-bottom-bar {
+  opacity: 1;
+  pointer-events: auto;
+}

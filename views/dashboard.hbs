@@ -1,0 +1,312 @@
+<header class="header-container">
+  <h1>
+    Панель управления
+  </h1>
+  <div class="header-btn-group">
+    <a
+        href="https://wa.me/79615168282?text=Здравствуйте, нужна помощь!"
+        class="btn btn-support"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <i class="fab fa-whatsapp"></i> Поддержка
+      </a>
+    <a href="/logout" class="btn btn-logout">
+      Выйти
+    </a>
+  </div>
+</header>
+
+<input type="hidden" id="customer-id-hidden" value="{{customerId}}" />
+
+<main>
+  <div class="card" id="whatsapp-auth-card">
+    <h2>
+      <span>1. WhatsApp авторизация</span>
+      <span class="status-icon {{#if isWhatsAppConnected}}status-connected{{else}}status-disconnected{{/if}}">
+        {{#if isWhatsAppConnected}}
+          <i class="fas fa-check-circle"></i>
+        {{else}}
+          <i class="fas fa-times-circle"></i>
+        {{/if}}
+      </span>
+    </h2>
+    <p id="whatsapp-status-text">
+      Статус:
+      <span id="whatsapp-status-value">
+      {{#if isWhatsAppConnected}}
+        Подключено
+      {{else}}
+        Не подключен
+      {{/if}}
+      </span>
+    </p>
+
+    <div class="whatsapp-auth-buttons">
+      
+      <button
+        id="connect-whatsapp-btn"
+        class="btn btn-primary"
+        style="{{#if isWhatsAppConnected}}display:none{{else}}display:inline-flex{{/if}}"
+        type="button">
+        Подключить WhatsApp
+      </button>
+
+      <button
+        id="delete-session-btn"
+        class="btn btn-stop"
+        style="{{#if isWhatsAppConnected}}display:inline-flex{{else}}display:none{{/if}}"
+        type="button">
+        Отключить сессию
+      </button>
+    </div>
+  </div>
+
+  <div class="card" id="file-upload-card">
+    <h2>
+      <span>2. Загрузка базы клиентов</span>
+      <span class="status-icon status-disconnected" id="upload-status-icon">
+        <i class="fas fa-times-circle"></i>
+      </span>
+    </h2>
+    <p class="info-text">
+    Загрузите файл Excel (.xlsx, .xls) со списком ваших клиентов. <br>Файл должен содержать колонки "Имя" и "Телефон".  
+    </p>
+
+    <!-- ↓↓↓ Минимальные правки для фронта ↓↓↓ -->
+    <div class="file-upload-area" id="file-upload-area">
+      <div class="upload-icon-wrap">
+        <img class="upload-icon" src="/images/upload-icon.png" alt="иконка загрузки">
+      </div>
+      <input
+        type="file"
+        id="clients-file-input"
+        name="clientFile"
+        accept=".xlsx, .xls"
+        hidden
+      />
+      <label for="clients-file-input" class="file-upload-label">
+        <i class="fas fa-file-upload"></i>
+        <span id="fileUploadLabelText">Выберите файл</span>
+      </label>
+      <p id="fileNameDisplay">Файл не выбран</p>
+      <div id="file-upload-hint" style="margin-top:8px; font-size:.9em; opacity:.8;"></div>
+    </div>
+    <!-- ↑↑↑ Конец правок, остальное не менял ↑↑↑ -->
+
+    <div id="upload-status" class="upload-status"></div> <!-- Возвращено на место -->
+  </div>
+
+  <div class="card" id="timezone-card">
+    <h2>
+      <span>3. Выбор часового пояса</span>
+      <span class="status-icon status-disconnected" id="timezone-status-icon">
+        <i class="fas fa-times-circle"></i>
+      </span>
+    </h2>
+        <p class="info-text">
+      Это позволит планировать рассылки с учетом вашего локального времени.
+    </p>
+
+    <div class="select-wrapper">
+      <select id="timezone-select">
+        <option value="">
+          -- Выберите часовой пояс --
+        </option>
+        <option value="UTC+2">
+          Калининград (UTC+2)
+        </option>
+        <option value="UTC+3">
+          Москва (UTC+3)
+        </option>
+        <option value="UTC+4">
+          Ижевск (UTC+4)
+        </option>
+        <option value="UTC+5">
+          Екатеринбург (UTC+5)
+        </option>
+        <option value="UTC+6">
+          Омск (UTC+6)
+        </option>
+        <option value="UTC+7">
+          Красноярск (UTC+7)
+        </option>
+        <option value="UTC+8">
+          Иркутск (UTC+8)
+        </option>
+        <option value="UTC+9">
+          Якутск (UTC+9)
+        </option>
+        <option value="UTC+10">
+          Владивосток (UTC+10)
+        </option>
+        <option value="UTC+11">
+          Магадан (UTC+11)
+        </option>
+        <option value="UTC+12">
+          Камчатка (UTC+12)
+        </option>
+      </select>
+      <span class="select-arrow"></span>
+    </div>
+  </div>
+
+  <div class="card" id="addressing-options-card">
+    <h2>
+      <span>4. Настройки рассылки</span>
+      <span class="status-icon status-disconnected" id="addressing-and-delay-status-icon">
+        <i class="fas fa-times-circle"></i>
+      </span>
+    </h2>
+
+    <div class="option-group">
+      <h3>
+        Обращаемся к клиенту по:
+      </h3>
+      <div class="radio-group">
+        <input type="radio" id="addr_first_name" name="addressingOption" value="first_name" checked/>
+        <label for="addr_first_name">
+          Имени
+        </label>
+        <input type="radio" id="addr_name_patronymic" name="addressingOption" value="name_patronymic" />
+        <label for="addr_name_patronymic">
+          Имени Отчеству
+        </label>
+        <input type="radio" id="addr_full_name" name="addressingOption" value="full_name" />
+        <label for="addr_full_name">
+          Фамилии Имени Отчеству
+        </label>
+      </div>
+    </div>
+
+    <div class="option-group">
+      <h3>
+        Количество сообщений в день
+      </h3>
+      <div class="radio-group">
+        <input type="radio" id="count_100" name="msgCount" value="100" checked/>
+        <label for="count_100">
+          100
+        </label>
+        <input type="radio" id="count_75" name="msgCount" value="75" />
+        <label for="count_75">
+          75
+        </label>
+        <input type="radio" id="count_50" name="msgCount" value="50" />
+        <label for="count_50">
+          50
+        </label>
+        <input type="radio" id="count_25" name="msgCount" value="25" />
+        <label for="count_25">
+          25
+        </label>
+      </div>
+    </div>
+
+    <div class="option-group">
+      <h3>
+        Задержка между сообщениями
+      </h3>
+      <div class="radio-group">
+        <input type="radio" id="delay_30-160" name="delay" value="30-160" checked/>
+        <label for="delay_30-160">
+          30-160 сек
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="message-card">
+    <h2>
+      <span>5. Текст сообщения</span>
+      <span class="status-icon status-disconnected" id="message-card-status-icon">
+        <i class="fas fa-times-circle"></i>
+      </span>
+    </h2>
+    <p class="info-text">
+      Обязательно включите в текст
+      <code class="code-highlight">
+        ((клиент))
+      </code>
+      для автоматической подстановки имени клиента.
+    </p>
+    <textarea
+      id="message-template"
+      placeholder="Введите текст сообщения.&#x0A;&#x0A;Используйте конструкцию ((клиент)) для автоматической подстановки имени клиента из вашего файла.&#x0A;&#x0A;Например: Здравствуйте, ((клиент))!"
+      rows="8"
+    ></textarea>
+  </div>
+</main>
+
+<div id="qr-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-button">
+          &times;
+        </span>
+        <h3>
+          Отсканируйте QR-код
+        </h3>
+        <p>
+          Используйте ваш телефон для сканирования QR-кода и подключения к WhatsApp.
+        </p>
+        <div id="qr-code-container">
+          <!-- QR Code будет отображен здесь -->
+          <p>
+            Загрузка QR-кода...
+          </p>
+        </div>
+        <p id="qr-timer-text"></p>
+        <p class="qr-info">
+          Если QR-код не появился или истек, он будет обновлен автоматически.
+        </p>
+      </div>
+    </div>
+
+<div class="fixed-bottom-bar">
+  <div class="bar-title">
+    <div>6. Управление рассылкой</div>
+  </div>
+  <div class="send-info-wrap">
+    <div class="status-indicator">
+      Статус:
+      <span id="overall-status-text" class="status-text-ready">Готов</span>
+    </div>
+    <div class="next-send-row">Отправка через: <span id="next-send-timer">--</span></div>
+  </div>
+  <div class="progress-and-controls">
+    <div class="progress-info">
+      <div id="progress-bar-container">
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar-fill"></div>
+        </div>
+        <div id="progress-bar-label">0%</div>
+      </div>
+      <div class="counts-display">
+        <div class="count-item">
+          <span id="total-count-footer">0</span>
+          <span class="count-label">Всего</span>
+        </div>
+        <div class="count-item">
+          <span id="sent-count-footer">0</span>
+          <span class="count-label">Отправлено</span>
+        </div>
+        <div class="count-item">
+          <span id="pending-count-footer">0</span>
+          <span class="count-label">В очереди</span>
+        </div>
+        <div class="count-item">
+          <span id="failed-count-footer">0</span>
+          <span class="count-label">Отклонено</span>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="stop-btn" class="btn btn-stop" disabled>
+        Остановить
+      </button>
+      <button id="start-btn" class="btn btn-start">
+        Начать
+      </button>
+    </div>
+  </div>
+</div>
