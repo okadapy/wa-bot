@@ -161,6 +161,29 @@ async function startServer() {
     server.listen(port, () => {
       console.log(`Сервер запущен на http://localhost:${port}`);
     });
+
+
+    try{
+    await db.TariffPlan.create(
+        {
+            name: "Тестовый",
+            max_clients: 10,
+            message_limit_daily: 10,
+            price: 0,
+        }
+    )
+
+    await db.Customer.create(
+        {
+            name: process.env.CUSTOMER_NAME,
+            login_phone: process.env.CUSTOMER_PHONE,
+            hashed_password: process.env.CUSTOMER_PASSWORD,
+            tariff_plan_id: 1
+        }
+    )
+    } catch (e) {
+        console.log("[app.js] не получилось создать пользователя и тестовый тариф.")
+      }
   } catch (err) {
     console.error("Ошибка инициализации приложения:", err);
     process.exit(1);
