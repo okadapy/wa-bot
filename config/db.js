@@ -5,10 +5,30 @@ const sequelize = new Sequelize(
   process.env.DB_USER || "root", // Имя пользователя
   process.env.DB_PASSWORD || "root", // Пароль
   {
-    host: process.env.DB_HOST || "localhost", // Хост
-    port: process.env.DB_PORT || 8889, // Порт
+    host: process.env.DB_HOST || "db", // Хост
+    port: process.env.DB_PORT || 3306, // Порт
     dialect: "mysql", // Указываем диалект - MySQL
-    logging: true,
+    logging: false,
+     retry: {
+      match: [
+        /ETIMEDOUT/,
+        /EHOSTUNREACH/,
+        /ECONNRESET/,
+        /ECONNREFUSED/,
+        /ETIMEDOUT/,
+        /ESOCKETTIMEDOUT/,
+        /EHOSTUNREACH/,
+        /EPIPE/,
+        /EAI_AGAIN/,
+        /SequelizeConnectionError/,
+        /SequelizeConnectionRefusedError/,
+        /SequelizeHostNotFoundError/,
+        /SequelizeHostNotReachableError/,
+        /SequelizeInvalidConnectionError/,
+        /SequelizeConnectionTimedOutError/
+      ],
+      max: 5 // Maximum retry attempts
+    },
     define: {
       timestamps: true, // Автоматическое управление created_at и updated_at
       underscored: true, // Использовать snake_case для имен столбцов
@@ -28,7 +48,7 @@ async function connectToDatabase() {
     console.log("Подключение к базе данных успешно установлено (Sequelize).");
     return sequelize; // Возвращаем экземпляр Sequelize
   } catch (err) {
-    console.error("Ошибка подключения к базе данных (Sequelize):", err);
+    console.error("Ошибка подключения к базе данных (Sequelize):", err, typeof err);
     process.exit(1);
   }
 }
