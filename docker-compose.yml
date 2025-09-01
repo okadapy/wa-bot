@@ -1,0 +1,52 @@
+
+version: '3.8'
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - wa-bot:/app
+      - /app/node_modules
+      - logs:/root/.npm/_logs/
+    environment:
+      - NODE_ENV=development
+      - CUSTOMER_NAME=${CUSTOMER_NAME}
+      - CUSTOMER_PHONE=${CUSTOMER_PHONE}
+      - CUSTOMER_PASSWORD=${CUSTOMER_PASSWORD}
+      # Добавляем переменные для подключения к MySQL
+    command: npm run start
+    depends_on:
+      db:
+        condition: service_healthy
+      scheduler:
+        condition: service_started
+
+  scheduler:
+    build:
+      context: ./scheduler
+    ports:
+      - "80:80"
+    command: go run .
+
+  db:
+    image: mysql
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_USER}
+      MYSQL_TCP_PORT: ${DB_PORT}  # Явно указываем порт
+    ports:
+      - "3306:3306"  # Пробрасываем стандартный порт
+    volumes:
+      - mysql_data:/var/lib/mysql  # Корректный путь для MySQL
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+volumes:
+  mysql_data:
+  wa-bot:
+  logs:

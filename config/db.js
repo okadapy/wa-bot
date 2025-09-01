@@ -8,7 +8,7 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST || "localhost", // Хост
     port: process.env.DB_PORT || 8889, // Порт
     dialect: "mysql", // Указываем диалект - MySQL
-    logging: false,
+    logging: true,
     define: {
       timestamps: true, // Автоматическое управление created_at и updated_at
       underscored: true, // Использовать snake_case для имен столбцов
@@ -28,7 +28,7 @@ async function connectToDatabase() {
     console.log("Подключение к базе данных успешно установлено (Sequelize).");
     return sequelize; // Возвращаем экземпляр Sequelize
   } catch (err) {
-    console.error("Ошибка подключения к базе данных (Sequelize):", err.message);
+    console.error("Ошибка подключения к базе данных (Sequelize):", err);
     process.exit(1);
   }
 }
