@@ -187,14 +187,14 @@ func (ctrl *Controller) GetCampaign(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"campaign_id":  campaign.ID,
-		"customer_id":  campaign.CustomerID,
-		"sent":         campaign.Sent,
-		"timezone":     campaign.Timezone,
-		"max_msg":      campaign.MaxMsg,
-		"msg_text":     campaign.MsgText,
-		"client_count": len(campaign.Clients),
-		"status":       campaign.Status.String(),
+		"campaignId":  campaign.ID,
+		"customerId":  campaign.CustomerID,
+		"sent":        campaign.Sent,
+		"timezone":    campaign.Timezone,
+		"maxMsg":      campaign.MaxMsg,
+		"msgText":     campaign.MsgText,
+		"clientCount": len(campaign.Clients),
+		"status":      campaign.Status.String(),
 	})
 }
 

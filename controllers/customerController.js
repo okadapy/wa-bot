@@ -481,6 +481,14 @@ module.exports = (app) => {
           message: "Планировщик недоступен или вернул ошибку.",
         });
       }
+      /*
+      {
+
+           "campaign_id": 1,
+
+           "message": "Campaign created successfully"
+       }
+      */
 
       if (!resp || !resp.campaignId) {
         console.error("[scheduler] ERROR: планировщик не вернул campaignId:", resp);
