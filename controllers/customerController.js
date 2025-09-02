@@ -71,6 +71,52 @@ module.exports = (app) => {
     }
   }
 
+  /**
+   * ====== ТАЙМЗОНА: утилиты ======
+   * toTzNumber — конвертирует разные форматы в ЧИСЛО часов, например:
+   * "UTC+3" -> 3, "+03:00" -> 3, "-05:30" -> -5.5, "+5.5" -> 5.5, "3" -> 3
+   * Возвращает null, если распарсить нельзя.
+   */
+  function toTzNumber(timezone) {
+    if (timezone == null) return null;
+    let s = String(timezone).trim();
+    if (!s) return null;
+
+    // Сносим префиксы UTC/GMT
+    s = s.replace(/^(UTC|GMT)/i, "").trim();
+
+    // Совместимость с видами "+03:00", "+0300", "-5:30", "+5.5", "+3", "3", "-04"
+    const m = s.match(/^([+-])?\s*(\d{1,2})(?::?(\d{2}))?(?:\.(\d+))?$/);
+    if (!m) return null;
+
+    const sign = m[1] === "-" ? -1 : 1;
+    const hours = Number(m[2]);
+
+    if (!Number.isFinite(hours)) return null;
+    let dec = hours;
+
+    if (m[3] != null) {
+      // формат HH:MM или HHMM
+      const mm = Number(m[3]);
+      if (!Number.isFinite(mm)) return null;
+      dec += mm / 60;
+    } else if (m[4] != null) {
+      // формат H.fraction
+      const frac = Number("0." + m[4]);
+      if (!Number.isFinite(frac)) return null;
+      dec += Math.round(frac * 60) / 60; // приводим к шагу 1/60 часа
+    }
+
+    return sign * dec;
+  }
+
+  /** Нормализованная строка для UI/логов вида "+3" / "-5.5" */
+  function tzNumberToUiString(num) {
+    if (num == null || !Number.isFinite(num)) return null;
+    const str = Number.isInteger(num) ? String(num) : String(num);
+    return (num >= 0 ? "+" : "") + str;
+  }
+
   /** Загрузка Excel с клиентами (+ сохранение исходника в ./client_data) */
   exports.uploadClients = async (req, res) => {
     const customerId = req.session ? req.session.customerId : null;
@@ -329,7 +375,6 @@ module.exports = (app) => {
     try {
       console.log("[startSending] invoked");
       console.log("[startSending] session.customerId:", req?.session?.customerId);
-      console.log("[startSending] body:", JSON.stringify(req.body, null, 2));
     } catch (_) {}
 
     if (!req.session || !req.session.customerId) {
@@ -344,7 +389,7 @@ module.exports = (app) => {
 
     const { message, timezone, daily_limit, max_clients } = req.body || {};
 
-    if (!timezone) {
+    if (timezone == null || (typeof timezone === "string" && !timezone.trim())) {
       console.warn("[startSending] 400 no timezone");
       return res.status(400).json({ success: false, message: "Выберите часовой пояс в настройках перед запуском." });
     }
@@ -361,14 +406,14 @@ module.exports = (app) => {
         .json({ success: false, message: "WhatsApp-клиент не подключен. Подключите его и попробуйте снова." });
     }
 
-    // "UTC+3" -> "+3"
-      let tz = timezone;
-      if (tz && /^UTC[+-]\d+/.test(tz)) {
-          tz = tz.replace(/^UTC/, "");  // Remove "UTC" prefix
-          tz = parseInt(tz, 10);        // Convert to integer
-      } else {
-          tz = 0; // or handle invalid/unsupported format appropriately
-      }
+    // === Новая логика таймзоны ===
+    // Преобразуем в ЧИСЛО часов для микросервиса, и отдельную строку для UI/логов/хранилища.
+    const tzNum = toTzNumber(timezone);
+    if (tzNum == null || !Number.isFinite(tzNum)) {
+      console.warn("[startSending] 400 bad timezone format:", timezone);
+      return res.status(400).json({ success: false, message: "Некорректный формат часового пояса." });
+    }
+    const tzUi = tzNumberToUiString(tzNum); // например, "+3" или "-5.5"
 
     try {
       const rows = await CustomerClientPhone.findAll({
@@ -404,7 +449,7 @@ module.exports = (app) => {
 
       const payload = {
         customerId,
-        timezone: tz,
+        timezone: tzNum, // <=== В МИКРОСЕРВИС УХОДИТ ЧИСЛО, например 3 или -5.5
         clients,
         message: message,
         daily_limit: limitDaily ?? 100,
@@ -447,12 +492,13 @@ module.exports = (app) => {
       }
 
       const { saveCampaignTimezoneDB } = require("../services/campaignStore");
-      await saveCampaignTimezoneDB(resp.campaignId, tz, customerId);
+      // В БД/состоянии для удобства людей храним человекочитаемую строку (+3 / -5.5)
+      await saveCampaignTimezoneDB(resp.campaignId, tzUi, customerId);
 
-      if (io) io.emit("campaign_started", { campaignId: resp.campaignId, timezone: tz, total: clients.length });
+      if (io) io.emit("campaign_started", { campaignId: resp.campaignId, timezone: tzUi, total: clients.length });
 
       const { setOnStart } = require("../services/campaignStateStore");
-      setOnStart({ customerId, campaignId: resp.campaignId, timezone: tz, message, total: clients.length });
+      setOnStart({ customerId, campaignId: resp.campaignId, timezone: tzUi, message, total: clients.length });
 
       return res.status(202).json({ success: true, campaignId: resp.campaignId, scheduled: true });
     } catch (e) {
@@ -587,7 +633,12 @@ module.exports = (app) => {
       const customerId = req.session?.customerId;
       if (!customerId) return res.status(401).json({ success: false, message: "Не авторизован" });
       const b = req.body || {};
-      const timezone = typeof b.timezone === "string" ? b.timezone.trim() : null;
+
+      // Принимаем и строку, и число
+      let timezone = null;
+      if (typeof b.timezone === "string") timezone = b.timezone.trim();
+      else if (typeof b.timezone === "number" && Number.isFinite(b.timezone)) timezone = String(b.timezone);
+
       const message_draft = typeof b.message_draft === "string" ? b.message_draft : null;
       const addressing_option = typeof b.addressing_option === "string" ? b.addressing_option : null;
       const daily_limit_pref = Number.isFinite(Number(b.daily_limit_pref)) ? Number(b.daily_limit_pref) : null;

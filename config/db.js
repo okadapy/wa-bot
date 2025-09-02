@@ -9,7 +9,7 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT || 3306, // Порт
     dialect: "mysql", // Указываем диалект - MySQL
     logging: false,
-     retry: {
+    retry: {
       match: [
         /ETIMEDOUT/,
         /EHOSTUNREACH/,
@@ -25,9 +25,9 @@ const sequelize = new Sequelize(
         /SequelizeHostNotFoundError/,
         /SequelizeHostNotReachableError/,
         /SequelizeInvalidConnectionError/,
-        /SequelizeConnectionTimedOutError/
+        /SequelizeConnectionTimedOutError/,
       ],
-      max: 5 // Maximum retry attempts
+      max: 5, // Maximum retry attempts
     },
     define: {
       timestamps: true, // Автоматическое управление created_at и updated_at
@@ -55,5 +55,3 @@ async function connectToDatabase() {
 
 // Экспортируем функцию, которая возвращает обещание с экземпляром Sequelize
 module.exports = connectToDatabase();
-
-//111

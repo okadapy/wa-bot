@@ -118,45 +118,49 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
   const setDisabled = (el, v) => {
-    if (el) el.disabled = !!v;
+    if (!el) return;
+    // Для радиокнопок/чекбоксов NodeList:
+    if (Array.isArray(el)) {
+      el.forEach((n) => {
+        if (n) n.disabled = !!v;
+      });
+    } else {
+      el.disabled = !!v;
+    }
   };
 
+  // === Счётчик длины сообщения
   if (msgTemplate && msgCounter) {
-    msgTemplate.addEventListener("input", () => {
-      const len = msgTemplate.value.length;
+    const updateLocalCounter = () => {
+      const len = (msgTemplate.value || "").length;
       msgCounter.textContent = `${len} / ${MSG_MAXLEN}`;
-      if (len >= MSG_MAXLEN) {
-        msgCounter.style.color = "red";
-      } else {
-        msgCounter.style.color = "";
-      }
-    });
-    msgCounter.textContent = `${msgTemplate.value.length} / ${MSG_MAXLEN}`;
+      msgCounter.style.color = len >= MSG_MAXLEN ? "red" : "";
+    };
+    msgTemplate.addEventListener("input", updateLocalCounter);
+    updateLocalCounter();
   }
 
+  // (устаревшие хелперы — приведены к MSG_MAXLEN, оставлены на будущее)
   function updateMsgCounter() {
     if (!msgCounter || !msgTemplate) return;
     const len = (msgTemplate.value || "").length;
-    msgCounter.textContent = `${len}/${MESSAGE_MAX}`;
-    // простая индикация выхода за лимит
-    if (len > MESSAGE_MAX) msgCounter.classList.add("over");
+    msgCounter.textContent = `${len} / ${MSG_MAXLEN}`;
+    if (len > MSG_MAXLEN) msgCounter.classList.add("over");
     else msgCounter.classList.remove("over");
   }
-
   function enforceMessageLimit(e) {
     if (!msgTemplate) return;
     let v = msgTemplate.value || "";
-    if (v.length > MESSAGE_MAX) {
-      // режем хвост
-      msgTemplate.value = v.slice(0, MESSAGE_MAX);
+    if (v.length > MSG_MAXLEN) {
+      msgTemplate.value = v.slice(0, MSG_MAXLEN);
       if (e && typeof e.preventDefault === "function") e.preventDefault();
-      // покажем предупреждение один раз при попытке превысить
       if (window.Swal) {
-        Swal.fire("Слишком длинно", `Максимум ${MESSAGE_MAX} символов. Лишнее было обрезано.`, "warning");
+        Swal.fire("Слишком длинно", `Максимум ${MSG_MAXLEN} символов. Лишнее было обрезано.`, "warning");
       }
     }
     updateMsgCounter();
   }
+
   const setIconConnected = (iconEl, connected) => {
     if (!iconEl) return;
     iconEl.classList.remove("status-connected", "status-disconnected");
@@ -191,11 +195,9 @@ document.addEventListener("DOMContentLoaded", () => {
   })();
 
   function scrollToBottomBar() {
-    // сначала прокрутим сам бар в видимую область
     if (bottomBar?.scrollIntoView) {
       bottomBar.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-    // затем «дожать» прокрутку до низа страницы (надёжнее на iOS Safari)
     setTimeout(() => {
       window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
     }, 50);
@@ -206,9 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
     emojiPicker.style.display = willShow ? "block" : "none";
 
     if (willShow) {
-      // подвинем страницу, чтобы низ был в кадре
       scrollToBottomBar();
-      // и сфокусируем поле ввода, если нужно
       msgTemplate?.focus();
     }
   });
@@ -217,7 +217,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const emoji = event.detail?.unicode || "";
     if (!emoji || !msgTemplate) return;
 
-    // вставляем эмодзи в курсор или в конец
     if (typeof msgTemplate.selectionStart === "number") {
       const { selectionStart: start, selectionEnd: end, value: v } = msgTemplate;
       msgTemplate.value = v.slice(0, start) + emoji + v.slice(end);
@@ -229,8 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     msgTemplate.dispatchEvent(new Event("input"));
-
-    // --- автозакрытие после выбора ---
+    // автозакрытие
     emojiPicker.style.display = "none";
   });
 
@@ -260,11 +258,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!overallStatusText) return;
     if (isCampaignActive) return;
 
+    const ready = allParamsReady();
+
+    // обновляем счётчик длины
     if (msgCounter && msgTemplate) {
-      msgCounter.textContent = `${msgTemplate.value.length} / 2000`;
+      msgCounter.textContent = `${(msgTemplate.value || "").length} / ${MSG_MAXLEN}`;
     }
 
-    if (allParamsReady()) {
+    // статус
+    if (ready) {
       overallStatusText.textContent = "Готов";
       overallStatusText.classList.add("status-text-ready");
       overallStatusText.classList.remove("status-text-running");
@@ -272,6 +274,10 @@ document.addEventListener("DOMContentLoaded", () => {
       overallStatusText.textContent = "Не готов";
       overallStatusText.classList.remove("status-text-ready", "status-text-running");
     }
+
+    // управление кнопками
+    setDisabled(startBtn, !ready);
+    setDisabled(stopBtn, true);
   }
 
   function markAddressingAndDelay() {
@@ -448,20 +454,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   msgTemplate?.addEventListener("input", (e) => {
     queueSaveSettings();
-
-    // === ограничение длины + счётчик ===
-    const msgCounter = document.getElementById("message-counter");
-    const MSG_MAXLEN = 2000;
-
-    if (msgCounter) {
-      const len = msgTemplate.value.length;
-      msgCounter.textContent = `${len} / ${MSG_MAXLEN}`;
-      msgCounter.style.color = len >= MSG_MAXLEN ? "red" : "";
-    }
+    updateOverallReadyState();
   });
 
-  addressingRadios.forEach((r) => r.addEventListener("change", queueSaveSettings));
-  msgCountRadios.forEach((r) => r.addEventListener("change", queueSaveSettings));
+  addressingRadios.forEach((r) =>
+    r.addEventListener("change", () => {
+      queueSaveSettings();
+      updateOverallReadyState();
+    })
+  );
+  msgCountRadios.forEach((r) =>
+    r.addEventListener("change", () => {
+      queueSaveSettings();
+      updateOverallReadyState();
+    })
+  );
 
   // === CAMPAIGN SNAPSHOT ===
   async function bootstrapCampaignState() {
@@ -962,6 +969,51 @@ document.addEventListener("DOMContentLoaded", () => {
     if (failedFooter) failedFooter.textContent = failedCount;
     const percent = totalCount > 0 ? (sentCount / totalCount) * 100 : 0;
     setProgress(percent);
+  }
+
+  // ====== Блокировка/разблокировка UI при кампании ======
+  function lockMain() {
+    document.body.classList.add("campaign-active");
+    // Блокируем основные контролы
+    setDisabled(startBtn, true);
+    setDisabled(stopBtn, false);
+
+    setDisabled(fileInput, true);
+    if (fileArea) fileArea.classList.add("disabled");
+    setDisabled(purgeBtn, true);
+
+    setDisabled(timezoneSelect, true);
+    setDisabled(msgTemplate, true);
+    setDisabled(emojiBtn, true);
+    setDisabled(addressingRadios, true);
+    setDisabled(msgCountRadios, true);
+
+    // Не даем трогать WhatsApp-сессию во время кампании
+    setDisabled(connectBtn, true);
+    setDisabled(deleteBtn, true);
+  }
+
+  function unlockMain() {
+    document.body.classList.remove("campaign-active");
+    // Разблокируем с учетом готовности
+    setDisabled(stopBtn, true);
+    setDisabled(startBtn, !allParamsReady());
+
+    setDisabled(fileInput, false);
+    if (fileArea) fileArea.classList.remove("disabled");
+    setDisabled(purgeBtn, false);
+
+    setDisabled(timezoneSelect, false);
+    setDisabled(msgTemplate, false);
+    setDisabled(emojiBtn, false);
+    setDisabled(addressingRadios, false);
+    setDisabled(msgCountRadios, false);
+
+    // Возвращаем управление сессией WhatsApp
+    setDisabled(connectBtn, false);
+    setDisabled(deleteBtn, false);
+
+    updateOverallReadyState();
   }
 
   // ====== СТАРТ/СТОП РАССЫЛКИ ======
