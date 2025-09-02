@@ -32,6 +32,7 @@ module.exports = (sequelize) => {
   Customer.hasMany(CustomerClientPhone, { foreignKey: "customer_id" });
   CustomerClientPhone.belongsTo(Customer, { foreignKey: "customer_id" });
 
+
   const db = {
     sequelize,
     Sequelize,

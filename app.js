@@ -28,6 +28,7 @@ const initModels = require("./models");
 const whatsappService = require("./services/whatsappService");
 const authRoutes = require("./routes/authRoutes");
 const customerRoutes = require("./routes/customerRoutes");
+const {Sequelize} = require("sequelize");
 
 const app = express();
 const server = http.createServer(app);
@@ -44,6 +45,28 @@ async function startServer() {
     // 1) Инициализация БД и моделей
     const sequelize = await sequelizePromise;
     const db = initModels(sequelize);
+
+      try{
+          await db.TariffPlan.create(
+              {
+                  name: "Тестовый",
+                  max_clients: 10,
+                  message_limit_daily: 10,
+                  price: 0,
+              }
+          )
+
+          await db.Customer.create(
+              {
+                  name: process.env.CUSTOMER_NAME,
+                  login_phone: process.env.CUSTOMER_PHONE,
+                  hashed_password: process.env.CUSTOMER_PASSWORD,
+                  tariff_plan_id: 1
+              }
+          )
+      } catch (e) {
+          console.error("[app.js] не получилось создать пользователя и тестовый тариф.")
+      }
 
     // 2) Сессии
     const sessionStore = new SequelizeStore({
@@ -176,32 +199,18 @@ async function startServer() {
       console.log(`Сервер запущен на http://localhost:${port}`);
     });
 
+    await db.Customer.sync()
+      await db.TariffPlan.sync()
+      await db.CustomerClient.sync()
+     await  db.CustomerClientPhone.sync()
 
-    try{
-    await db.TariffPlan.create(
-        {
-            name: "Тестовый",
-            max_clients: 10,
-            message_limit_daily: 10,
-            price: 0,
-        }
-    )
 
-    await db.Customer.create(
-        {
-            name: process.env.CUSTOMER_NAME,
-            login_phone: process.env.CUSTOMER_PHONE,
-            hashed_password: process.env.CUSTOMER_PASSWORD,
-            tariff_plan_id: 1
-        }
-    )
-    } catch (e) {
-        console.log("[app.js] не получилось создать пользователя и тестовый тариф.")
-      }
   } catch (err) {
     console.error("Ошибка инициализации приложения:", err);
     process.exit(1);
   }
 }
 
-startServer();
+startServer().then(() => {}).catch(
+    (error) => console.log(error)
+);
