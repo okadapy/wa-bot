@@ -4,7 +4,7 @@
   </h1>
   <div class="header-btn-group">
     <a
-        href="https://wa.me/79615168282?text=Здравствуйте, нужна помощь!"
+        href="https://wa.me/79892270667?text=Здравствуйте, нужна помощь!"
         class="btn btn-support"
         target="_blank"
         rel="noopener noreferrer"
@@ -92,9 +92,10 @@
       <p id="fileNameDisplay">Файл не выбран</p>
       <div id="file-upload-hint" style="margin-top:8px; font-size:.9em; opacity:.8;"></div>
     </div>
-    <!-- ↑↑↑ Конец правок, остальное не менял ↑↑↑ -->
-
-    <div id="upload-status" class="upload-status"></div> <!-- Возвращено на место -->
+    <button id="purge-clients-btn" class="btn btn-danger" style="display:none; margin-top:12px;">
+        Удалить всю базу клиентов
+    </button>
+    <div id="upload-status" class="upload-status"></div>
   </div>
 
   <div class="card" id="timezone-card">
@@ -232,9 +233,15 @@
     </p>
     <textarea
       id="message-template"
+      maxlength="2000"
       placeholder="Введите текст сообщения.&#x0A;&#x0A;Используйте конструкцию ((клиент)) для автоматической подстановки имени клиента из вашего файла.&#x0A;&#x0A;Например: Здравствуйте, ((клиент))!"
       rows="8"
     ></textarea>
+    <small id="message-counter">0 / 2000</small>
+    <button id="emoji-btn" class="btn">Выбрать эмодзи</button>
+    <div class="emoji-wrapper">
+      <emoji-picker id="emoji-picker" style="display:none;"></emoji-picker>
+    </div>
   </div>
 </main>
 
@@ -271,7 +278,6 @@
       Статус:
       <span id="overall-status-text" class="status-text-ready">Готов</span>
     </div>
-    <div class="next-send-row">Отправка через: <span id="next-send-timer">--</span></div>
   </div>
   <div class="progress-and-controls">
     <div class="progress-info">
@@ -309,4 +315,9 @@
       </button>
     </div>
   </div>
+  <div id="campaign-alert" class="alert-banner alert-danger" style="display:none;">
+  <div class="alert-content">
+    <span id="campaign-alert-text"></span>
+  </div>
+</div>
 </div>

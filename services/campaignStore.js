@@ -38,10 +38,16 @@ async function saveCampaignTimezoneDB(campaignId, timezone, customerId) {
   return M.create({ campaign_id: campaignId, timezone: timezone || "UTC", customer_id: customerId || null });
 }
 
+async function getCustomerIdByCampaignDB(campaignId) {
+  const M = await initModel();
+  const row = await M.findOne({ where: { campaign_id: campaignId }, attributes: ['customer_id'] });
+  return row ? row.customer_id : null;
+}
+
 async function getCampaignTimezoneDB(campaignId) {
   const M = await initModel();
   const row = await M.findOne({ where: { campaign_id: campaignId }, attributes: ["timezone"] });
   return row ? row.timezone : "UTC";
 }
 
-module.exports = { saveCampaignTimezoneDB, getCampaignTimezoneDB, initModel };
+module.exports = { saveCampaignTimezoneDB, getCampaignTimezoneDB, getCustomerIdByCampaignDB, initModel };

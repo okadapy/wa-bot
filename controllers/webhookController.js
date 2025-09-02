@@ -2,18 +2,20 @@
 
 const whatsappService = require("../services/whatsappService");
 const { reportSendResult } = require("../services/schedulerClient");
-const { getCampaignTimezoneDB } = require("../services/campaignStore");
+const { getCampaignTimezoneDB, getCustomerIdByCampaignDB } = require("../services/campaignStore");
+const { bumpProgress } = require("../services/campaignStateStore");
 
 /**
- * Вебхук от планировщика: задание на отправку сообщения.
+ * Вебхук от планировщика: задание на отправку сообщения ИЛИ сигнал паузы.
  *
  * Ожидаемый JSON:
  * {
- *   "campaignId": "cmp_123",     // обязателен
- *   "taskId": "tsk_0001",        // обязателен для идемпотентности у планировщика
+ *   "campaignId": "cmp_123",     // обязателен для всех кейсов
+ *   "taskId": "tsk_0001",        // обязателен для отправки (идемпотентность у планировщика)
  *   "phoneNumber": "+79001234567",
  *   "msgText": "Привет, Иван!",
- *   "msgSendCount": 37
+ *   "msgSendCount": 37,
+ *   "pausing": true|false        // необязательный флаг: если true — показываем плашку-паузу (24ч локально на фронте)
  * }
  */
 exports.schedulerSendWebhook = async (req, res) => {
@@ -25,18 +27,39 @@ exports.schedulerSendWebhook = async (req, res) => {
     const phoneNumber = body.phoneNumber || null;
     const msgText = typeof body.msgText === "string" ? body.msgText : "";
     const msgSendCount = Number.isFinite(Number(body.msgSendCount)) ? Number(body.msgSendCount) : null;
+    const pausingFlag = typeof body.pausing === "boolean" ? body.pausing : undefined;
 
-    // базовая валидация
-    if (!campaignId || !taskId) {
-      return res.status(422).json({ success: false, message: "campaignId и taskId обязательны" });
+    if (!campaignId) {
+      return res.status(422).json({ success: false, message: "campaignId обязателен" });
+    }
+
+    const io = req.app.get("io");
+
+    // ======= Обработка паузы от микросервиса =======
+    if (pausingFlag === true) {
+      // Эмитим событие фронту — показать красную плашку с локальным 24h обратным отсчётом.
+      try {
+        io && io.emit("campaign_pausing", { pausing: true, campaignId });
+      } catch (_) {}
+      // В режиме паузы сообщение НЕ отправляем (даже если поля пришли): подтверждаем приём и выходим.
+      return res.status(202).json({ success: true, pausing: true });
+    }
+    if (pausingFlag === false) {
+      // Снять плашку на фронте (продолжаем обычную обработку, если пришло ещё и задание на отправку)
+      try {
+        io && io.emit("campaign_pausing", { pausing: false, campaignId });
+      } catch (_) {}
+    }
+
+    // ======= Дальше — обычное задание на отправку =======
+    if (!taskId) {
+      return res.status(422).json({ success: false, message: "taskId обязателен для отправки сообщения" });
     }
     if (!phoneNumber || !msgText) {
       return res.status(422).json({ success: false, message: "phoneNumber и msgText обязательны" });
     }
 
-    const io = req.app.get("io");
-
-    // Сокет: берём задание в работу
+    // Сигнал "в процессе" для прогресса (не обязательно, но полезно)
     if (io) {
       io.emit("campaign_progress", {
         campaignId,
@@ -47,20 +70,11 @@ exports.schedulerSendWebhook = async (req, res) => {
       });
     }
 
-    // Если хочешь локально дублировать «тихие часы» — раскомментируй и допиши isQuietNow
-    // try {
-    //   const tz = await getCampaignTimezoneDB(campaignId);
-    //   if (tz && isQuietNow(tz)) {
-    //     // бизнес-отказ — пускай планировщик решит, когда повторить
-    //     return res.status(409).json({ success: false, message: "quiet_hours" });
-    //   }
-    // } catch (_) {}
-
-    // Отправляем в WhatsApp прямо сейчас
+    // Отправляем в WhatsApp
     const result = await whatsappService.sendWhatsAppMessage(phoneNumber, msgText);
 
     if (result && result.success) {
-      // Отчёт планировщику: УСПЕХ
+      // Репортим в планировщик: OK
       try {
         await reportSendResult({
           campaignId,
@@ -73,7 +87,7 @@ exports.schedulerSendWebhook = async (req, res) => {
         console.warn("[webhook] reportSendResult(sent) failed:", e?.message || e);
       }
 
-      // Сокет: успешная отправка
+      // Обновляем фронт
       if (io) {
         io.emit("campaign_progress", {
           campaignId,
@@ -84,14 +98,18 @@ exports.schedulerSendWebhook = async (req, res) => {
         });
       }
 
-      // Приняли и обработали — можно 202/200. 202 — «принято», чтобы не блокировать планировщик.
+      // Локальный счётчик
+      try {
+        const customerId = await getCustomerIdByCampaignDB(campaignId);
+        if (customerId) bumpProgress({ customerId, ok: true });
+      } catch {}
+
       return res.status(202).json({ success: true });
     }
 
-    // Ошибка отправки WA
+    // Ошибка отправки
     const errMsg = (result && result.message) || "send_failed";
 
-    // Отчёт планировщику: ОШИБКА
     try {
       await reportSendResult({
         campaignId,
@@ -104,7 +122,6 @@ exports.schedulerSendWebhook = async (req, res) => {
       console.warn("[webhook] reportSendResult(failed) failed:", e?.message || e);
     }
 
-    // Сокет: ошибка
     if (io) {
       io.emit("campaign_error", {
         campaignId,
@@ -114,7 +131,11 @@ exports.schedulerSendWebhook = async (req, res) => {
       });
     }
 
-    // Бизнес-ошибка — 409 (даём планировщику понять, что можно ретраить по его правилам)
+    try {
+      const customerId = await getCustomerIdByCampaignDB(campaignId);
+      if (customerId) bumpProgress({ customerId, ok: false });
+    } catch {}
+
     return res.status(409).json({ success: false, message: errMsg });
   } catch (e) {
     console.error("[/wh/send] unexpected error:", e);
@@ -122,22 +143,6 @@ exports.schedulerSendWebhook = async (req, res) => {
   }
 };
 
-/** Простой health-check контроллера вебхуков (опционально повесь на GET /wh/health) */
 exports.health = (req, res) => {
   return res.json({ ok: true, ts: Date.now() });
 };
-
-/* =======================
- * (опционально) пример проверки «тихих часов», если решишь оставить дубль-валидацию
- * tz в формате "+3" / "-5"
- * ======================= */
-// function isQuietNow(tzOffset) {
-//   if (!tzOffset || !/^[+-]\d+$/.test(tzOffset)) return false;
-//   const offset = parseInt(tzOffset, 10);
-//   const nowUtc = new Date();
-//   // локальное время = UTC + offset
-//   const local = new Date(nowUtc.getTime() + offset * 60 * 60 * 1000);
-//   const h = local.getUTCHours(); // используем getUTCHours, т.к. уже сместили дату
-//   // тихие часы 21:00–10:00
-//   return (h >= 21 || h < 10);
-// }

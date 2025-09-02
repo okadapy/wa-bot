@@ -1,5 +1,6 @@
-// customerController.js
-
+// controllers/customerController.js
+const fs = require("fs");
+const path = require("path");
 const xlsx = require("xlsx");
 const whatsappService = require("../services/whatsappService"); // сервис работы с WhatsApp
 
@@ -15,6 +16,7 @@ module.exports = (app) => {
   const CustomerClient = db.CustomerClient;
   const CustomerClientPhone = db.CustomerClientPhone;
   const Customer = db.Customer;
+  const TariffPlan = db.TariffPlan;
 
   let formattedClientsData = [];
   let isSending = false;
@@ -54,26 +56,22 @@ module.exports = (app) => {
       case "auto":
         if (words.length >= 3) return words[1];
         return asIs();
-
       case "first_name":
         if (words.length >= 3) return words[1];
         if (words.length === 1) return words[0];
         return asIs();
-
       case "name_patronymic":
         if (words.length >= 3) return `${words[1]} ${words[2]}`;
         return asIs();
-
       case "full_name":
         return asIs();
-
       case "as_is":
       default:
         return asIs();
     }
   }
 
-  /** Загрузка Excel/CSV с клиентами */
+  /** Загрузка Excel с клиентами (+ сохранение исходника в ./client_data) */
   exports.uploadClients = async (req, res) => {
     const customerId = req.session ? req.session.customerId : null;
 
@@ -89,7 +87,6 @@ module.exports = (app) => {
       return res.status(400).json({ success: false, message: "Файл не был загружен." });
     }
 
-    // Принимаем и clientFile, и clientsFile (на случай старой разметки)
     const clientFile = req.files.clientFile || req.files.clientsFile || req.files.file || req.files.upload;
 
     if (!clientFile) {
@@ -97,9 +94,54 @@ module.exports = (app) => {
       return res.status(400).json({ success: false, message: "Не найден файл. Поле должно называться 'clientFile'." });
     }
 
+    // ---- ограничение размера 20 МБ
+    const MAX_SIZE = 20 * 1024 * 1024;
+    if (clientFile.size && clientFile.size > MAX_SIZE) {
+      return res.status(413).json({
+        success: false,
+        message: "Файл слишком большой. Максимальный размер — 20 МБ.",
+      });
+    }
+
+    // принимаем только Excel
+    const origName = String(clientFile.name || "").toLowerCase();
+    if (!origName.endsWith(".xlsx") && !origName.endsWith(".xls")) {
+      return res.status(400).json({
+        success: false,
+        message: "Поддерживаются только файлы Excel (.xlsx или .xls). CSV не принимается.",
+      });
+    }
+
     const body = req.body || {};
     const addressingOption = (body.addressingOption || "").trim() || "auto";
 
+    // 1) Сохраняем исходный файл в ./client_data/YYYYMMDD_HHMMSS_originalName.ext
+    try {
+      const baseDir = path.resolve(process.cwd(), "client_data");
+      if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true });
+
+      const sanitizeName = (name) =>
+        String(name || "upload.xlsx")
+          .replace(/[/\\?%*:|"<>]/g, "_")
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const safeName = sanitizeName(clientFile.name);
+      const dt = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const stamp = `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}_${pad(dt.getHours())}${pad(
+        dt.getMinutes()
+      )}${pad(dt.getSeconds())}`;
+      const fileName = `${stamp}_${safeName}`;
+      const destPath = path.join(baseDir, fileName);
+
+      fs.writeFileSync(destPath, clientFile.data);
+      console.log(`[uploadClients] исходный файл сохранён: ${destPath}`);
+    } catch (e) {
+      console.warn("[uploadClients] не удалось сохранить исходный файл в ./client_data:", e?.message || e);
+    }
+
+    // 2) Разбор Excel и запись в БД
     let transaction;
     try {
       const workbook = xlsx.read(clientFile.data, { type: "buffer" });
@@ -218,12 +260,12 @@ module.exports = (app) => {
       console.error("uploadClients: ошибка обработки/сохранения файла:", error);
       return res.status(500).json({
         success: false,
-        message: "Ошибка при обработке файла или записи в базу. Проверьте формат Excel/CSV.",
+        message: "Ошибка при обработке файла или записи в базу. Проверьте формат Excel.",
       });
     }
   };
 
-  /** Краткая сводка по загруженной базе (для отображения на дашборде без перезагрузки файла) */
+  /** Краткая сводка по загруженной базе */
   exports.getUploadSummary = async (req, res) => {
     try {
       const customerId = req.session ? req.session.customerId : null;
@@ -233,8 +275,7 @@ module.exports = (app) => {
           .json({ success: false, message: "Пожалуйста, войдите в систему, чтобы запустить рассылку." });
       }
 
-      const db = req.app.get("db");
-      const { CustomerClient, CustomerClientPhone } = db;
+      const { CustomerClient, CustomerClientPhone } = req.app.get("db");
 
       const [totalClients, totalPhones, lastPhone] = await Promise.all([
         CustomerClient.count({ where: { customer_id: customerId } }),
@@ -258,10 +299,33 @@ module.exports = (app) => {
     }
   };
 
-  /** Запуск рассылки (через планировщик) */
+  /** Полная очистка базы клиентов для текущего пользователя */
+  exports.purgeClients = async (req, res) => {
+    try {
+      const customerId = req.session?.customerId;
+      if (!customerId) {
+        return res.status(401).json({ success: false, message: "Не авторизован" });
+      }
+
+      // На всякий случай — запретим, если кампания идёт
+      // (если у тебя есть CampaignStateStore — можно проверить и вернуть 409)
+      // Сейчас не блокируем, но логируем:
+      console.log(`[purgeClients] requested by customer ${customerId}`);
+
+      await sequelize.transaction(async (t) => {
+        await CustomerClientPhone.destroy({ where: { customer_id: customerId }, transaction: t });
+        await CustomerClient.destroy({ where: { customer_id: customerId }, transaction: t });
+      });
+
+      return res.json({ success: true, message: "База клиентов очищена." });
+    } catch (e) {
+      console.error("[purgeClients] error:", e);
+      return res.status(500).json({ success: false, message: "Не удалось очистить базу клиентов." });
+    }
+  };
+
   /** Запуск рассылки (через планировщик) — финальная версия */
   exports.startSending = async (req, res) => {
-    // ===== DEBUG входа =====
     try {
       console.log("[startSending] invoked");
       console.log("[startSending] session.customerId:", req?.session?.customerId);
@@ -276,7 +340,7 @@ module.exports = (app) => {
     }
 
     const customerId = req.session.customerId;
-    const io = app.get("io"); // Socket.IO из app.js
+    const io = app.get("io");
 
     const { message, timezone, daily_limit, max_clients } = req.body || {};
 
@@ -297,21 +361,17 @@ module.exports = (app) => {
         .json({ success: false, message: "WhatsApp-клиент не подключен. Подключите его и попробуйте снова." });
     }
 
-    // --- преобразуем timezone: "UTC+3" -> "+3" (или "UTC-5" -> "-5")
+    // "UTC+3" -> "+3"
     let tz = timezone;
-    if (tz && /^UTC[+-]\d+/.test(tz)) {
-      tz = tz.replace(/^UTC/, "");
-    }
+    if (tz && /^UTC[+-]\d+/.test(tz)) tz = tz.replace(/^UTC/, "");
 
     try {
-      // Собираем основной номер каждого клиента + имя
       const rows = await CustomerClientPhone.findAll({
         where: { customer_id: customerId, is_main: true },
         include: [{ model: CustomerClient, attributes: ["full_name"], where: { customer_id: customerId } }],
         order: [["id", "ASC"]],
       });
 
-      // ВНИМАНИЕ: используем поле phone_number, и НЕ передаем id в payload
       const clients = rows
         .map((r) => ({
           name: r.CustomerClient && r.CustomerClient.full_name ? String(r.CustomerClient.full_name).trim() : "",
@@ -321,13 +381,12 @@ module.exports = (app) => {
 
       console.log(`[startSending] found clients with main phones: ${clients.length}`);
 
-      // Лимиты: приоритет — тело запроса; если не задано — из тарифа
       let limitDaily = Number.isFinite(Number(daily_limit)) ? Number(daily_limit) : null;
       let limitMaxClients = Number.isFinite(Number(max_clients)) ? Number(max_clients) : null;
 
       try {
         const customer = await Customer.findByPk(customerId);
-        if (customer && customer.tariff_plan_id) {
+        if (customer && customer.tariff_plan_id && TariffPlan) {
           const tariff = await TariffPlan.findByPk(customer.tariff_plan_id);
           if (tariff) {
             if (limitDaily == null) limitDaily = Number(tariff.message_limit_daily) || null;
@@ -338,14 +397,13 @@ module.exports = (app) => {
         console.warn("Не удалось получить тариф пользователя:", e.message);
       }
 
-      // Формируем payload (плоские лимиты, message — строка)
       const payload = {
         customerId,
         timezone: tz,
         clients,
         message: message,
-        daily_limit: limitDaily ?? 100, // используем ?? чтобы 0 не превращался в null
-        max_clients: limitMaxClients ?? null, // пусто — безлимит
+        daily_limit: limitDaily ?? 100,
+        max_clients: limitMaxClients ?? null,
       };
 
       if (!clients.length) {
@@ -353,7 +411,6 @@ module.exports = (app) => {
         return res.status(400).json({ success: false, message: "Список клиентов пуст или у них нет телефонов." });
       }
 
-      // ---- ЛОГ payload
       console.log("[scheduler] POST /wh/campaign payload:");
       console.log(JSON.stringify(payload, null, 2));
 
@@ -384,11 +441,13 @@ module.exports = (app) => {
         });
       }
 
-      // Сохраняем TZ для кампании (в БД)
+      const { saveCampaignTimezoneDB } = require("../services/campaignStore");
       await saveCampaignTimezoneDB(resp.campaignId, tz, customerId);
 
-      // уведомим фронт по сокету
       if (io) io.emit("campaign_started", { campaignId: resp.campaignId, timezone: tz, total: clients.length });
+
+      const { setOnStart } = require("../services/campaignStateStore");
+      setOnStart({ customerId, campaignId: resp.campaignId, timezone: tz, message, total: clients.length });
 
       return res.status(202).json({ success: true, campaignId: resp.campaignId, scheduled: true });
     } catch (e) {
@@ -398,13 +457,13 @@ module.exports = (app) => {
         .json({ success: false, message: "Не удалось запустить кампанию. Попробуйте позже.", details: e.message });
     }
   };
+
   /** Стоп рассылки (через планировщик) */
   exports.stopSending = async (req, res) => {
-    // ===== DEBUG входа =====
     try {
-      console.log("[startSending] invoked");
-      console.log("[startSending] session.customerId:", req?.session?.customerId);
-      console.log("[startSending] body:", JSON.stringify(req.body, null, 2));
+      console.log("[stopSending] invoked");
+      console.log("[stopSending] session.customerId:", req?.session?.customerId);
+      console.log("[stopSending] body:", JSON.stringify(req.body, null, 2));
     } catch (_) {}
     const customerId = req.session ? req.session.customerId : null;
     if (!customerId) {
@@ -433,6 +492,7 @@ module.exports = (app) => {
         .json({ success: false, message: "Не удалось остановить кампанию. Попробуйте позже.", details: e.message });
     }
   };
+
   /** Инициализация WhatsApp */
   exports.initWhatsAppClient = async (req, res) => {
     if (!req.session.isCustomerAuthorized) {
@@ -485,14 +545,124 @@ module.exports = (app) => {
     }
   };
 
+  /** Получить сохранённые настройки пользователя */
+  exports.getSettings = async (req, res) => {
+    try {
+      const customerId = req.session?.customerId;
+      if (!customerId) return res.status(401).json({ success: false, message: "Не авторизован" });
+      const { CustomerSetting } = req.app.get("db");
+      let row = null;
+      try {
+        row = await CustomerSetting.findByPk(customerId);
+      } catch (e) {
+        console.warn("[getSettings] table may be missing:", e.message);
+      }
+      return res.json({
+        success: true,
+        data: row
+          ? {
+              timezone: row.timezone || null,
+              message_draft: row.message_draft || "",
+              addressing_option: row.addressing_option || "auto",
+              daily_limit_pref: row.daily_limit_pref ?? null,
+              max_clients_pref: row.max_clients_pref ?? null,
+              updated_at: row.updated_at || null,
+            }
+          : null,
+      });
+    } catch (e) {
+      console.error("[getSettings] error:", e);
+      return res.status(500).json({ success: false });
+    }
+  };
+
+  /** Сохранить настройки пользователя */
+  exports.saveSettings = async (req, res) => {
+    try {
+      const customerId = req.session?.customerId;
+      if (!customerId) return res.status(401).json({ success: false, message: "Не авторизован" });
+      const b = req.body || {};
+      const timezone = typeof b.timezone === "string" ? b.timezone.trim() : null;
+      const message_draft = typeof b.message_draft === "string" ? b.message_draft : null;
+      const addressing_option = typeof b.addressing_option === "string" ? b.addressing_option : null;
+      const daily_limit_pref = Number.isFinite(Number(b.daily_limit_pref)) ? Number(b.daily_limit_pref) : null;
+      const max_clients_pref =
+        b.max_clients_pref === null || Number.isFinite(Number(b.max_clients_pref))
+          ? b.max_clients_pref === null
+            ? null
+            : Number(b.max_clients_pref)
+          : null;
+
+      const { CustomerSetting } = req.app.get("db");
+      if (!CustomerSetting) {
+        return res.status(500).json({ success: false, message: "Модель CustomerSetting недоступна" });
+      }
+      await CustomerSetting.upsert({
+        customer_id: customerId,
+        timezone,
+        message_draft,
+        addressing_option,
+        daily_limit_pref,
+        max_clients_pref,
+        updated_at: new Date(),
+      });
+      return res.json({ success: true });
+    } catch (e) {
+      console.error("[saveSettings] error:", e);
+      return res.status(500).json({ success: false });
+    }
+  };
+
+  // ==== CAMPAIGN SNAPSHOT ====
+  exports.getCampaignState = async (req, res) => {
+    try {
+      const customerId = req.session?.customerId;
+      if (!customerId) {
+        return res.status(401).json({ success: false, message: "Не авторизован" });
+      }
+
+      let snap = null;
+      try {
+        const { getStateForCustomer } = require("../services/campaignStateStore");
+        if (typeof getStateForCustomer === "function") {
+          snap = getStateForCustomer(customerId);
+        }
+      } catch (_) {}
+
+      const wa = require("../services/whatsappService").getWhatsAppClient?.() || {};
+      const whatsapp = { state: wa.status || "closed" };
+
+      const campaign = snap || {
+        status: "stopped",
+        campaignId: null,
+        total: 0,
+        sent: 0,
+        failed: 0,
+        remaining: 0,
+        timezone: null,
+        message: null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      return res.json({ success: true, campaign, whatsapp });
+    } catch (e) {
+      console.error("[getCampaignState] error:", e);
+      return res.status(500).json({ success: false, message: "Не удалось получить состояние кампании" });
+    }
+  };
+
   return {
     getDashboard: exports.getDashboard,
     uploadClients: exports.uploadClients,
     getUploadSummary: exports.getUploadSummary,
+    purgeClients: exports.purgeClients,
     startSending: exports.startSending,
     stopSending: exports.stopSending,
     initWhatsAppClient: exports.initWhatsAppClient,
     hasSavedSession: exports.hasSavedSession,
     deleteWhatsAppSession: exports.deleteWhatsAppSession,
+    getSettings: exports.getSettings,
+    saveSettings: exports.saveSettings,
+    getCampaignState: exports.getCampaignState,
   };
 };

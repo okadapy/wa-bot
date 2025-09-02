@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
   const TariffPlan = require("./TariffPlan")(sequelize);
   const CustomerClient = require("./CustomerClient")(sequelize);
   const CustomerClientPhone = require("./CustomerClientPhone")(sequelize);
+  const CustomerSetting = require("./CustomerSetting")(sequelize);
 
   // TariffPlan <-> Customer (один тарифный план может иметь много клиентов)
   TariffPlan.hasMany(Customer, { foreignKey: "tariff_plan_id" });
@@ -38,6 +39,7 @@ module.exports = (sequelize) => {
     TariffPlan,
     CustomerClient,
     CustomerClientPhone,
+    CustomerSetting,
   };
 
   console.log("models/index.js: Все модели и ассоциации успешно определены.");

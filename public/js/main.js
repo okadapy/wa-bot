@@ -52,16 +52,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const fileHint = document.getElementById("file-upload-hint");
   const fileNameDisplay = document.getElementById("fileNameDisplay");
   const uploadStatusIcon = document.getElementById("upload-status-icon");
+  const purgeBtn = document.getElementById("purge-clients-btn");
+  const purgeHint = document.getElementById("purge-clients-hint");
 
   // ====== DOM: Параметры рассылки ======
   const timezoneSelect = document.getElementById("timezone-select");
   const tzStatusIcon = document.getElementById("timezone-status-icon");
+  const bottomBar = document.querySelector(".fixed-bottom-bar");
   const msgTemplate = document.getElementById("message-template");
+  const msgCounter = document.getElementById("message-counter");
+  const emojiBtn = document.getElementById("emoji-btn");
+  const emojiPicker = document.getElementById("emoji-picker");
   const messageCardStatusIcon = document.getElementById("message-card-status-icon");
   const addressingRadios = Array.from(document.querySelectorAll('input[name="addressingOption"]'));
   const addressingAndDelayIcon = document.getElementById("addressing-and-delay-status-icon");
   const msgCountRadios = Array.from(document.querySelectorAll('input[name="msgCount"]'));
-  const delayRadios = Array.from(document.querySelectorAll('input[name="delay"]'));
 
   // ====== DOM: Управление рассылкой и прогресс ======
   const startBtn = document.getElementById("start-btn");
@@ -75,8 +80,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const pendingFooter = document.getElementById("pending-count-footer");
   const failedFooter = document.getElementById("failed-count-footer");
 
-  // ====== DOM: ETA ======
-  const etaEl = document.getElementById("next-send-timer");
+  // ====== DOM: Alert banner (красная плашка) ======
+  const alertBanner = document.getElementById("campaign-alert");
+  const alertText = document.getElementById("campaign-alert-text");
 
   // ====== STATE ======
   let currentStatus = "closed"; // whatsapp
@@ -90,16 +96,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // кампания
   let isCampaignActive = false;
-  let campaignId = null; // <— ID из планировщика
+  let campaignId = null; // ID из планировщика
 
   // прогресс
+  const MSG_MAXLEN = 2000;
   let totalCount = 0;
   let sentCount = 0;
   let failedCount = 0;
-
-  // ETA
-  let etaSeconds = 0;
-  let etaInterval = null;
 
   // ====== UTILS ======
   const show = (el, display = "inline-flex") => {
@@ -118,6 +121,42 @@ document.addEventListener("DOMContentLoaded", () => {
     if (el) el.disabled = !!v;
   };
 
+  if (msgTemplate && msgCounter) {
+    msgTemplate.addEventListener("input", () => {
+      const len = msgTemplate.value.length;
+      msgCounter.textContent = `${len} / ${MSG_MAXLEN}`;
+      if (len >= MSG_MAXLEN) {
+        msgCounter.style.color = "red";
+      } else {
+        msgCounter.style.color = "";
+      }
+    });
+    msgCounter.textContent = `${msgTemplate.value.length} / ${MSG_MAXLEN}`;
+  }
+
+  function updateMsgCounter() {
+    if (!msgCounter || !msgTemplate) return;
+    const len = (msgTemplate.value || "").length;
+    msgCounter.textContent = `${len}/${MESSAGE_MAX}`;
+    // простая индикация выхода за лимит
+    if (len > MESSAGE_MAX) msgCounter.classList.add("over");
+    else msgCounter.classList.remove("over");
+  }
+
+  function enforceMessageLimit(e) {
+    if (!msgTemplate) return;
+    let v = msgTemplate.value || "";
+    if (v.length > MESSAGE_MAX) {
+      // режем хвост
+      msgTemplate.value = v.slice(0, MESSAGE_MAX);
+      if (e && typeof e.preventDefault === "function") e.preventDefault();
+      // покажем предупреждение один раз при попытке превысить
+      if (window.Swal) {
+        Swal.fire("Слишком длинно", `Максимум ${MESSAGE_MAX} символов. Лишнее было обрезано.`, "warning");
+      }
+    }
+    updateMsgCounter();
+  }
   const setIconConnected = (iconEl, connected) => {
     if (!iconEl) return;
     iconEl.classList.remove("status-connected", "status-disconnected");
@@ -128,54 +167,89 @@ document.addEventListener("DOMContentLoaded", () => {
       i.classList.add(connected ? "fa-check-circle" : "fa-times-circle");
     }
   };
-
   const swal = (title, text, icon = "info") => {
     if (window.Swal) return Swal.fire(title, text, icon);
     alert(`${title}\n\n${text}`);
   };
 
-  // ====== ETA helpers ======
-  const setEtaLabel = (sec) => {
-    if (!etaEl) return;
-    if (typeof sec !== "number" || sec <= 0) etaEl.textContent = "";
-    else etaEl.textContent = `${sec} сек`;
-  };
+  function showAlert(htmlText) {
+    if (!alertBanner || !alertText) return;
+    alertText.innerHTML = htmlText;
+    alertBanner.style.display = "block";
+  }
+  function hideAlert() {
+    if (!alertBanner) return;
+    alertBanner.style.display = "none";
+    if (alertText) alertText.innerHTML = "";
+  }
 
-  const clearEtaCountdown = () => {
-    if (etaInterval) {
-      clearInterval(etaInterval);
-      etaInterval = null;
+  (function syncBottomBarHeight() {
+    if (bottomBar) {
+      const h = bottomBar.offsetHeight || 72;
+      document.documentElement.style.setProperty("--bottom-bar-h", `${h}px`);
     }
-    etaSeconds = 0;
-    setEtaLabel(0);
-  };
+  })();
 
-  const startEtaCountdown = (seconds) => {
-    clearEtaCountdown();
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-      setEtaLabel(0);
-      return;
+  function scrollToBottomBar() {
+    // сначала прокрутим сам бар в видимую область
+    if (bottomBar?.scrollIntoView) {
+      bottomBar.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-    etaSeconds = Math.ceil(seconds);
-    setEtaLabel(etaSeconds);
-    etaInterval = setInterval(() => {
-      etaSeconds -= 1;
-      if (etaSeconds > 0) setEtaLabel(etaSeconds);
-      else clearEtaCountdown();
-    }, 1000);
-  };
+    // затем «дожать» прокрутку до низа страницы (надёжнее на iOS Safari)
+    setTimeout(() => {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+    }, 50);
+  }
+
+  emojiBtn?.addEventListener("click", () => {
+    const willShow = emojiPicker.style.display !== "block";
+    emojiPicker.style.display = willShow ? "block" : "none";
+
+    if (willShow) {
+      // подвинем страницу, чтобы низ был в кадре
+      scrollToBottomBar();
+      // и сфокусируем поле ввода, если нужно
+      msgTemplate?.focus();
+    }
+  });
+
+  emojiPicker?.addEventListener("emoji-click", (event) => {
+    const emoji = event.detail?.unicode || "";
+    if (!emoji || !msgTemplate) return;
+
+    // вставляем эмодзи в курсор или в конец
+    if (typeof msgTemplate.selectionStart === "number") {
+      const { selectionStart: start, selectionEnd: end, value: v } = msgTemplate;
+      msgTemplate.value = v.slice(0, start) + emoji + v.slice(end);
+      const pos = start + emoji.length;
+      msgTemplate.selectionStart = msgTemplate.selectionEnd = pos;
+      msgTemplate.focus();
+    } else {
+      msgTemplate.value += emoji;
+    }
+
+    msgTemplate.dispatchEvent(new Event("input"));
+
+    // --- автозакрытие после выбора ---
+    emojiPicker.style.display = "none";
+  });
+
+  // ====== ЛОГИКА ГОТОВНОСТИ UI (объявляем РАНЬШЕ, чем используем) ======
+  function getSelectedRadioValue(list) {
+    const el = list.find((r) => r && r.checked);
+    return el ? el.value : null;
+  }
 
   function allParamsReady() {
     const waReady = currentStatus === "open" || currentStatus === "connected";
     const tzReady = !!timezoneSelect?.value;
     const msgReady = !!msgTemplate?.value?.trim() && /\(\(\s*клиент\s*\)\)/i.test(msgTemplate.value || "");
-    const addressing = getSelectedRadioValue
-      ? getSelectedRadioValue(addressingRadios)
-      : document.querySelector('input[name="addressingOption"]:checked')?.value;
-    const countVal = getSelectedRadioValue
-      ? getSelectedRadioValue(msgCountRadios)
-      : document.querySelector('input[name="msgCount"]:checked')?.value;
-    // задержка теперь не обязательна (тайминг делает планировщик)
+    const addressing =
+      getSelectedRadioValue(addressingRadios) ||
+      document.querySelector('input[name="addressingOption"]:checked')?.value;
+    const countVal =
+      getSelectedRadioValue(msgCountRadios) || document.querySelector('input[name="msgCount"]:checked')?.value;
+
     const addrReady = !!addressing;
     const countReady = !!countVal;
     const uploadReady = !!uploadCompleted;
@@ -185,6 +259,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateOverallReadyState() {
     if (!overallStatusText) return;
     if (isCampaignActive) return;
+
+    if (msgCounter && msgTemplate) {
+      msgCounter.textContent = `${msgTemplate.value.length} / 2000`;
+    }
 
     if (allParamsReady()) {
       overallStatusText.textContent = "Готов";
@@ -196,14 +274,244 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  const lockMain = () => document.body.classList.add("campaign-active");
-  const unlockMain = () => document.body.classList.remove("campaign-active");
+  function markAddressingAndDelay() {
+    const okAddr = !!getSelectedRadioValue(addressingRadios);
+    const okCount = !!getSelectedRadioValue(msgCountRadios);
+    setIconConnected(addressingAndDelayIcon, okAddr && okCount);
+  }
+
+  // ====== QUIET HOURS (21:00–10:00 по TZ) ======
+  function parseTzOffsetHours(tzStr) {
+    if (!tzStr || typeof tzStr !== "string") return null;
+    const m = tzStr.match(/^[+-]?\d+$/);
+    if (!m) return null;
+    return parseInt(tzStr, 10);
+  }
+  function isQuietHoursNow(tzStr) {
+    const off = parseTzOffsetHours(tzStr);
+    if (off == null || !Number.isFinite(off)) return false;
+    const nowUtc = new Date();
+    const local = new Date(nowUtc.getTime() + off * 3600 * 1000);
+    const h = local.getUTCHours();
+    return h >= 21 || h < 10;
+  }
+
+  let quietHoursTimer = null;
+  function updateQuietHoursBanner() {
+    const tz = timezoneSelect?.value || null;
+    const qh = tz ? isQuietHoursNow(tz) : false;
+
+    if (isCampaignActive && qh) {
+      showAlert(
+        "Рассылка приостановлена с 21:00 до 10:00 в связи с тихими часами.<br>" +
+          "По истечению этого времени рассылка автоматически продолжится."
+      );
+    } else {
+      if (!riskPauseActive) hideAlert();
+    }
+  }
+  function startQuietHoursWatcher() {
+    clearInterval(quietHoursTimer);
+    quietHoursTimer = setInterval(updateQuietHoursBanner, 30 * 1000);
+    updateQuietHoursBanner();
+  }
+
+  // ====== RISK-PAUSE (локальный 24ч обратный отсчёт) ======
+  let riskPauseActive = false;
+  let riskPauseTimer = null;
+  let riskPauseRemainingSec = 0;
+
+  function formatHMS(totalSec) {
+    const s = Math.max(0, Math.floor(totalSec));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const parts = [];
+    if (h > 0)
+      parts.push(
+        `${h} час${h % 10 === 1 && h !== 11 ? "" : h % 10 >= 2 && h % 10 <= 4 && (h < 10 || h > 20) ? "а" : "ов"}`
+      );
+    if (m > 0)
+      parts.push(
+        `${m} минут${m % 10 === 1 && m !== 11 ? "а" : m % 10 >= 2 && m % 10 <= 4 && (m < 10 || m > 20) ? "ы" : ""}`
+      );
+    parts.push(
+      `${sec} секунд${
+        sec % 10 === 1 && sec !== 11 ? "а" : sec % 10 >= 2 && sec % 10 <= 4 && (sec < 10 || sec > 20) ? "ы" : ""
+      }`
+    );
+    return parts.join(" ");
+  }
+
+  function updateRiskPauseBanner() {
+    if (!riskPauseActive) return;
+    if (riskPauseRemainingSec <= 0) {
+      riskPauseActive = false;
+      clearInterval(riskPauseTimer);
+      riskPauseTimer = null;
+      hideAlert();
+      updateQuietHoursBanner();
+      return;
+    }
+    const txt =
+      `Рассылка приостановлена на ${formatHMS(riskPauseRemainingSec)}.<br>` +
+      `Это снижает риск блокировки номера телефона WhatsApp сервисом.<br>` +
+      `По истечению этого времени рассылка автоматически продолжится.`;
+    showAlert(txt);
+    riskPauseRemainingSec -= 1;
+  }
+
+  function startRiskPause(seconds) {
+    riskPauseActive = true;
+    riskPauseRemainingSec = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 24 * 3600;
+    clearInterval(riskPauseTimer);
+    riskPauseTimer = setInterval(updateRiskPauseBanner, 1000);
+    updateRiskPauseBanner();
+  }
+
+  function stopRiskPause() {
+    riskPauseActive = false;
+    clearInterval(riskPauseTimer);
+    riskPauseTimer = null;
+    hideAlert();
+    updateQuietHoursBanner();
+  }
+
+  // === SETTINGS: загрузка и автосейв ===
+  function applySettingsToUI(s) {
+    if (timezoneSelect && typeof s.timezone === "string") {
+      timezoneSelect.value = s.timezone;
+      setIconConnected(tzStatusIcon, !!timezoneSelect.value);
+    }
+    if (msgTemplate && typeof s.message_draft === "string") {
+      msgTemplate.value = s.message_draft;
+      const valid = !!msgTemplate.value.trim() && /\(\(\s*клиент\s*\)\)/i.test(msgTemplate.value);
+      setIconConnected(messageCardStatusIcon, valid);
+    }
+    if (Array.isArray(addressingRadios) && s.addressing_option) {
+      const el = addressingRadios.find((r) => r.value === s.addressing_option);
+      if (el) el.checked = true;
+    }
+    if (Array.isArray(msgCountRadios) && s.daily_limit_pref != null) {
+      const el = msgCountRadios.find((r) => Number(r.value) === Number(s.daily_limit_pref));
+      if (el) el.checked = true;
+    }
+    updateOverallReadyState();
+    updateQuietHoursBanner();
+  }
+
+  async function loadSettings() {
+    try {
+      const cache = JSON.parse(localStorage.getItem("wa_settings") || "null");
+      if (cache) applySettingsToUI(cache);
+    } catch (_) {}
+
+    try {
+      const r = await fetch("/customer/settings", { cache: "no-store" });
+      const d = await r.json().catch(() => null);
+      if (r.ok && d?.success && d.data) {
+        applySettingsToUI(d.data);
+        localStorage.setItem("wa_settings", JSON.stringify(d.data));
+      }
+    } catch (_) {}
+  }
+
+  let settingsSaveTimer = null;
+  function queueSaveSettings() {
+    clearTimeout(settingsSaveTimer);
+    settingsSaveTimer = setTimeout(saveSettings, 500);
+  }
+  async function saveSettings() {
+    const payload = {
+      timezone: timezoneSelect?.value || null,
+      message_draft: msgTemplate?.value || "",
+      addressing_option: document.querySelector('input[name="addressingOption"]:checked')?.value || "auto",
+      daily_limit_pref: Number(document.querySelector('input[name="msgCount"]:checked')?.value) || null,
+      max_clients_pref: null,
+    };
+    localStorage.setItem("wa_settings", JSON.stringify(payload));
+    try {
+      await fetch("/customer/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (_) {}
+    updateQuietHoursBanner();
+  }
+
+  timezoneSelect?.addEventListener("change", () => {
+    setIconConnected(tzStatusIcon, !!timezoneSelect.value);
+    updateOverallReadyState();
+    updateQuietHoursBanner();
+  });
+
+  msgTemplate?.addEventListener("input", (e) => {
+    queueSaveSettings();
+
+    // === ограничение длины + счётчик ===
+    const msgCounter = document.getElementById("message-counter");
+    const MSG_MAXLEN = 2000;
+
+    if (msgCounter) {
+      const len = msgTemplate.value.length;
+      msgCounter.textContent = `${len} / ${MSG_MAXLEN}`;
+      msgCounter.style.color = len >= MSG_MAXLEN ? "red" : "";
+    }
+  });
+
+  addressingRadios.forEach((r) => r.addEventListener("change", queueSaveSettings));
+  msgCountRadios.forEach((r) => r.addEventListener("change", queueSaveSettings));
+
+  // === CAMPAIGN SNAPSHOT ===
+  async function bootstrapCampaignState() {
+    try {
+      const r = await fetch("/customer/campaign/state", { cache: "no-store" });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.success) return;
+
+      updateUI(d.whatsapp?.state || "closed");
+
+      const c = d.campaign;
+      if (!c) return;
+
+      setCounts({
+        total: c.total || 0,
+        sent: c.sent || 0,
+        remaining: c.remaining != null ? c.remaining : Math.max(0, (c.total || 0) - (c.sent || 0)),
+        failed: c.failed || 0,
+      });
+
+      const s = c.status || "stopped";
+      if (s === "running") {
+        overallStatusText && (overallStatusText.textContent = "В процессе");
+        overallStatusText && overallStatusText.classList.add("status-text-running");
+        setDisabled(startBtn, true);
+        setDisabled(stopBtn, false);
+        lockMain();
+      } else if (String(s).startsWith("paused_")) {
+        overallStatusText && (overallStatusText.textContent = "На паузе");
+        setDisabled(startBtn, true);
+        setDisabled(stopBtn, false);
+        lockMain();
+      } else if (s === "completed") {
+        overallStatusText && (overallStatusText.textContent = "Завершено");
+        setDisabled(startBtn, false);
+        setDisabled(stopBtn, true);
+        unlockMain();
+      } else {
+        overallStatusText && (overallStatusText.textContent = "Остановлено");
+        setDisabled(startBtn, false);
+        setDisabled(stopBtn, true);
+        unlockMain();
+      }
+    } catch (_) {}
+  }
 
   // ====== WHATSAPP UI ======
   function updateUI(status, qrCodeString = null) {
     currentStatus = status;
 
-    // Статусный текст + цвет
     let statusText;
     let statusClass;
 
@@ -251,7 +559,7 @@ document.addEventListener("DOMContentLoaded", () => {
       show(connectBtn);
       setDisabled(connectBtn, true);
       show(deleteBtn);
-      setDisabled(deleteBtn, status !== "qr"); // можно удалить сессию, если подвис
+      setDisabled(deleteBtn, status !== "qr");
     } else {
       show(connectBtn);
       setDisabled(connectBtn, false);
@@ -386,12 +694,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ====== Socket.IO: WhatsApp ======
   socket.on("connect", () => {
+    bootstrapCampaignState()
+      .then(() => {
+        if (isCampaignActive) startQuietHoursWatcher();
+        else {
+          clearInterval(quietHoursTimer);
+          hideAlert();
+        }
+      })
+      .catch(() => {});
+    loadSettings();
     socket.emit("request_whatsapp_status");
   });
 
-  // поддержка старого/нового формата whatsapp_status
   socket.on("whatsapp_status", (payload) => {
-    const status = payload && payload.state ? payload.state : payload; // {state:'qr'} или 'qr'
+    const status = payload && payload.state ? payload.state : payload;
     const transient = ["reconnecting", "connecting", "logged_out"];
 
     if (status === "qr") {
@@ -414,12 +731,10 @@ document.addEventListener("DOMContentLoaded", () => {
     updateOverallReadyState();
   });
 
-  // новый унифицированный статус
   socket.on("wa_status", ({ state }) => {
     socket.emit("whatsapp_status", { state });
   });
 
-  // новый QR (рекомендуемый)
   socket.on("wa_qr", ({ dataUrl }) => {
     if (!manualConnectRequested) return;
     qrModal?.classList.add("active");
@@ -431,7 +746,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!qrTimerInterval) startQrTimer();
   });
 
-  // совместимость со старыми событиями QR
   socket.on("qr_image", (dataUrl) => {
     if (!manualConnectRequested) return;
     qrModal?.classList.add("active");
@@ -523,6 +837,75 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  purgeBtn?.addEventListener("click", () => {
+    if (!window.Swal) {
+      if (!confirm("Вы точно хотите удалить всю базу клиентов? Это действие необратимо.")) return;
+      doPurge();
+      return;
+    }
+    Swal.fire({
+      title: "Удалить ВСЮ базу клиентов?",
+      html: "Это действие <b>необратимо</b>: будут удалены все клиенты и их номера.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Да, удалить",
+      cancelButtonText: "Отмена",
+      confirmButtonColor: "#d33",
+    }).then((result) => {
+      if (result.isConfirmed) doPurge();
+    });
+  });
+
+  async function doPurge() {
+    try {
+      const res = await fetch("/customer/purge-clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || `Ошибка удаления (${res.status})`);
+      }
+
+      // UI: база пуста — скрываем кнопку удаления, сбрасываем индикаторы
+      if (typeof uploadCompleted !== "undefined") uploadCompleted = false;
+      setIconConnected && setIconConnected(uploadStatusIcon, false);
+
+      const labelTextEl = document.getElementById("fileUploadLabelText");
+      if (labelTextEl) labelTextEl.textContent = "Выберите файл";
+
+      if (fileNameDisplay) fileNameDisplay.textContent = "Файл не выбран";
+      if (fileHint) fileHint.textContent = "База пуста. Загрузите Excel (.xlsx или .xls).";
+
+      if (purgeBtn) purgeBtn.style.display = "none";
+      if (purgeHint) purgeHint.style.display = "none";
+
+      // Сброс прогресса
+      if (typeof setCounts === "function") {
+        setCounts({ total: 0, sent: 0, remaining: 0, failed: 0 });
+      }
+
+      if (typeof updateOverallReadyState === "function") updateOverallReadyState();
+
+      if (window.Swal) {
+        await Swal.fire("Готово", "База клиентов очищена.", "success");
+      } else {
+        alert("База клиентов очищена.");
+      }
+    } catch (e) {
+      if (window.Swal) {
+        await Swal.fire("Не удалось удалить", e.message || "Ошибка удаления", "error");
+      } else {
+        alert("Не удалось удалить: " + (e.message || "Ошибка удаления"));
+      }
+    } finally {
+      // На всякий случай подтянем актуальную сводку
+      try {
+        if (typeof refreshUploadSummary === "function") await refreshUploadSummary();
+      } catch (_) {}
+    }
+  }
+
   async function refreshUploadSummary() {
     try {
       const res = await fetch("/customer/upload-summary");
@@ -537,7 +920,7 @@ document.addEventListener("DOMContentLoaded", () => {
           fileNameDisplay.textContent = `В базе уже ${data.totalClients} клиентов (${data.totalPhones} телефон(ов)).`;
         }
         const labelTextEl = document.getElementById("fileUploadLabelText");
-        if (labelTextEl) labelTextEl.textContent = "Заменить файл";
+        if (labelTextEl) labelTextEl.textContent = "Добавить файл";
 
         if (fileHint) {
           const dt = data.lastUploadAt ? new Date(data.lastUploadAt) : null;
@@ -545,88 +928,20 @@ document.addEventListener("DOMContentLoaded", () => {
             ? `Последняя загрузка: ${dt.toLocaleString("ru-RU")}`
             : "Данные уже присутствуют в базе.";
         }
+        if (purgeBtn) purgeBtn.style.display = "inline-flex";
+        if (purgeHint) purgeHint.style.display = "block";
       } else {
         uploadCompleted = false;
         setIconConnected(uploadStatusIcon, false);
         if (fileNameDisplay) fileNameDisplay.textContent = "Файл не выбран";
         const labelTextEl = document.getElementById("fileUploadLabelText");
         if (labelTextEl) labelTextEl.textContent = "Выберите файл";
+        if (purgeBtn) purgeBtn.style.display = "none";
+        if (purgeHint) purgeHint.style.display = "none";
       }
       updateOverallReadyState();
     } catch (e) {}
   }
-
-  // ====== ВАЛИДАЦИЯ ПЕРЕД СТАРТОМ ======
-  function getSelectedRadioValue(list) {
-    const el = list.find((r) => r && r.checked);
-    return el ? el.value : null;
-  }
-
-  function validateBeforeStart() {
-    const errors = [];
-
-    if (!(currentStatus === "open" || currentStatus === "connected")) {
-      errors.push("Подключите WhatsApp.");
-    }
-    if (!uploadCompleted) {
-      errors.push("Загрузите файл клиентов (Excel).");
-    }
-    const tz = timezoneSelect ? timezoneSelect.value : "";
-    if (!tz) {
-      errors.push("Выберите часовой пояс.");
-    }
-    const addressing = getSelectedRadioValue(addressingRadios);
-    if (!addressing) {
-      errors.push("Выберите способ обращения к клиенту.");
-    }
-    const msgCount = getSelectedRadioValue(msgCountRadios);
-    if (!msgCount) {
-      errors.push("Выберите количество сообщений в день.");
-    }
-    // задержку больше не требуем: планировщик рулит таймингом
-
-    const msg = (msgTemplate?.value || "").trim();
-    if (!msg) {
-      errors.push("Введите текст сообщения.");
-    } else if (!/\(\(\s*клиент\s*\)\)/i.test(msg)) {
-      errors.push("Сообщение должно содержать плейсхолдер ((клиент)).");
-    }
-
-    return { ok: errors.length === 0, errors, payload: { tz, addressing, msgCount, msg } };
-  }
-
-  // Подсветка статусов параметров
-  timezoneSelect?.addEventListener("change", () => {
-    setIconConnected(tzStatusIcon, !!timezoneSelect.value);
-    updateOverallReadyState();
-  });
-
-  msgTemplate?.addEventListener("input", () => {
-    const valid = !!msgTemplate.value.trim() && /\(\(\s*клиент\s*\)\)/i.test(msgTemplate.value);
-    setIconConnected(messageCardStatusIcon, valid);
-    updateOverallReadyState();
-  });
-
-  function markAddressingAndDelay() {
-    const okAddr = !!getSelectedRadioValue(addressingRadios);
-    const okCount = !!getSelectedRadioValue(msgCountRadios);
-    // delay опционален теперь, но оставим индикатор как раньше:
-    setIconConnected(addressingAndDelayIcon, okAddr && okCount);
-  }
-  addressingRadios.forEach((r) =>
-    r.addEventListener("change", () => {
-      markAddressingAndDelay();
-      updateOverallReadyState();
-    })
-  );
-  msgCountRadios.forEach((r) =>
-    r.addEventListener("change", () => {
-      markAddressingAndDelay();
-      updateOverallReadyState();
-    })
-  );
-
-  markAddressingAndDelay();
 
   // ====== ПРОГРЕСС ======
   function setProgress(percent) {
@@ -662,8 +977,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     isCampaignActive = true;
     lockMain();
-    clearEtaCountdown();
-
     setDisabled(startBtn, true);
     setDisabled(stopBtn, false);
     overallStatusText && overallStatusText.classList.remove("status-text-ready");
@@ -671,6 +984,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (overallStatusText) overallStatusText.textContent = "В процессе";
 
     setCounts({ total: 0, sent: 0, remaining: 0, failed: 0 });
+    startQuietHoursWatcher();
 
     try {
       const res = await fetch(URL_START, {
@@ -678,13 +992,12 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: payload.msg,
-          timezone: payload.tz, // <— ВАЖНО
-          daily_limit: Number(payload.msgCount), // <— «сообщений в день»
+          timezone: payload.tz,
+          daily_limit: Number(payload.msgCount),
         }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) throw new Error(data?.message || `Ошибка запуска (${res.status})`);
-
       // campaignId придёт через сокет "campaign_started"
     } catch (err) {
       isCampaignActive = false;
@@ -695,6 +1008,8 @@ document.addEventListener("DOMContentLoaded", () => {
       overallStatusText && overallStatusText.classList.add("status-text-ready");
       if (overallStatusText) overallStatusText.textContent = "Готов";
       swal("Не удалось начать", err.message || "Ошибка запуска рассылки", "error");
+      clearInterval(quietHoursTimer);
+      hideAlert();
     }
   });
 
@@ -704,14 +1019,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(URL_STOP, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId }), // <— передаём campaignId из планировщика
+        body: JSON.stringify({ campaignId }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) throw new Error(data?.message || `Ошибка остановки (${res.status})`);
 
-      // Оптимистично обновляем UI
       isCampaignActive = false;
-      clearEtaCountdown();
       unlockMain();
       setDisabled(startBtn, false);
       setDisabled(stopBtn, true);
@@ -720,13 +1033,49 @@ document.addEventListener("DOMContentLoaded", () => {
       if (overallStatusText) overallStatusText.textContent = "Остановлено";
       swal("Остановлено", "Рассылка остановлена", "info");
       stopNotifyShown = true;
+
+      stopRiskPause();
+      hideAlert();
+      clearInterval(quietHoursTimer);
     } catch (err) {
       setDisabled(stopBtn, false);
       swal("Не удалось остановить", err.message || "Ошибка остановки", "error");
     }
   });
 
-  // ====== Socket.IO: события рассылки/кампании ======
+  // ====== ВАЛИДАЦИЯ ПЕРЕД СТАРТОМ ======
+  function validateBeforeStart() {
+    const errors = [];
+
+    if (!(currentStatus === "open" || currentStatus === "connected")) {
+      errors.push("Подключите WhatsApp.");
+    }
+    if (!uploadCompleted) {
+      errors.push("Загрузите файл клиентов (Excel).");
+    }
+    const tz = timezoneSelect ? timezoneSelect.value : "";
+    if (!tz) {
+      errors.push("Выберите часовой пояс.");
+    }
+    const addressing = getSelectedRadioValue(addressingRadios);
+    if (!addressing) {
+      errors.push("Выберите способ обращения к клиенту.");
+    }
+    const msgCount = getSelectedRadioValue(msgCountRadios);
+    if (!msgCount) {
+      errors.push("Выберите количество сообщений в день.");
+    }
+    const msg = (msgTemplate?.value || "").trim();
+    if (!msg) {
+      errors.push("Введите текст сообщения.");
+    } else if (!/\(\(\s*клиент\s*\)\)/i.test(msg)) {
+      errors.push("Сообщение должно содержать плейсхолдер ((клиент)).");
+    }
+
+    return { ok: errors.length === 0, errors, payload: { tz, addressing, msgCount, msg } };
+  }
+
+  // ====== События кампании (сокеты) ======
   socket.on("campaign_started", ({ campaignId: id, timezone, total }) => {
     campaignId = id || campaignId;
     if (typeof total === "number") {
@@ -737,18 +1086,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   socket.on("campaign_stopped", ({ campaignId: id }) => {
     if (id && id === campaignId) {
-      // UI уже обновили в стопе — здесь ничего не обязательно
+      // UI уже обновили в стопе
     }
   });
 
-  // прогресс от вебхука
   socket.on("campaign_progress", ({ campaignId: id, taskId, phoneNumber, msgSendCount, status }) => {
-    if (id && campaignId && id !== campaignId) return; // чужая кампания
+    if (id && campaignId && id !== campaignId) return;
     if (status === "sent") {
       sentCount += 1;
       setCounts({ total: totalCount || sentCount + failedCount, sent: sentCount });
-    } else if (status === "sending") {
-      // можно показать "в обработке"
     }
   });
 
@@ -758,46 +1104,22 @@ document.addEventListener("DOMContentLoaded", () => {
     setCounts({ total: totalCount || sentCount + failedCount, failed: failedCount });
   });
 
-  // старые события — оставляем для совместимости
+  // Новое: пауза от микросервиса — только { pausing: true|false }
+  socket.on("campaign_pausing", ({ pausing }) => {
+    if (!isCampaignActive) {
+      stopRiskPause();
+      hideAlert();
+      return;
+    }
+    if (pausing === true) {
+      startRiskPause(); // 24 часа по умолчанию
+    } else {
+      stopRiskPause();
+    }
+  });
+
   socket.on("update_progress", ({ total, sent, remaining }) => {
     setCounts({ total, sent, remaining, failed: failedCount });
-  });
-
-  // ETA
-  socket.on("next_send_eta", ({ seconds }) => {
-    if (!Number.isFinite(seconds) || seconds <= 0) clearEtaCountdown();
-    else startEtaCountdown(seconds);
-  });
-
-  socket.on("sending_error", ({ name, error }) => {
-    failedCount += 1;
-    setCounts({ total: totalCount, sent: sentCount, failed: failedCount });
-    console.warn("sending_error:", name, error);
-  });
-
-  socket.on("sending_finished", () => {
-    isCampaignActive = false;
-    unlockMain();
-    clearEtaCountdown();
-    setDisabled(startBtn, false);
-    setDisabled(stopBtn, true);
-    overallStatusText && overallStatusText.classList.remove("status-text-running");
-    overallStatusText && overallStatusText.classList.add("status-text-ready");
-    if (overallStatusText) overallStatusText.textContent = "Завершено";
-    swal("Готово", "Рассылка завершена", "success");
-  });
-
-  socket.on("sending_stopped", () => {
-    isCampaignActive = false;
-    unlockMain();
-    clearEtaCountdown();
-    setDisabled(startBtn, false);
-    setDisabled(stopBtn, true);
-    overallStatusText && overallStatusText.classList.remove("status-text-running");
-    overallStatusText && overallStatusText.classList.add("status-text-ready");
-    if (overallStatusText) overallStatusText.textContent = "Остановлено";
-    if (!stopNotifyShown) swal("Остановлено", "Рассылка остановлена", "info");
-    stopNotifyShown = false;
   });
 
   // ====== стартовое состояние ======

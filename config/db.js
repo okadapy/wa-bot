@@ -55,3 +55,5 @@ async function connectToDatabase() {
 
 // Экспортируем функцию, которая возвращает обещание с экземпляром Sequelize
 module.exports = connectToDatabase();
+
+//111

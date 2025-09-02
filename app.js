@@ -4,10 +4,13 @@ const http = require("http");
 const session = require("express-session");
 const path = require("path");
 const { Server } = require("socket.io");
-const fileUpload = require("express-fileupload");
 const rawBody = require("./middleware/rawBody");
 const SequelizeStore = require("connect-session-sequelize")(session.Store);
 const QRCode = require("qrcode"); // для fallback-эндпоинта /qr.png
+const { runMigrations } = require("./services/migrate");
+const fileUpload = require("express-fileupload");
+
+const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES) || 20 * 1024 * 1024;
 
 // Глобальные перехватчики, чтобы приложение не падало от внезапных async ошибок
 process.on("unhandledRejection", (reason, p) => {
@@ -80,7 +83,18 @@ async function startServer() {
     // 4) Middleware
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
-    app.use(fileUpload());
+    app.use(
+      fileUpload({
+        limits: { fileSize: MAX_UPLOAD_BYTES },
+        abortOnLimit: true, // оборвать при превышении
+        responseOnLimit: JSON.stringify({
+          // тело ответа при 413
+          success: false,
+          message:
+            "Файл слишком большой. Максимальный размер: " + (MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(0) + " МБ.",
+        }),
+      })
+    );
 
     // 5) Статика
     app.use(express.static(path.join(__dirname, "public")));
