@@ -14,7 +14,7 @@ const { bumpProgress } = require("../services/campaignStateStore");
  *   "taskId": "tsk_0001",        // обязателен для отправки (идемпотентность у планировщика)
  *   "phoneNumber": "+79001234567",
  *   "msgText": "Привет, Иван!",
- *   "msgSendCount": 37,
+ *   "sent": 37,
  *   "pausing": true|false        // необязательный флаг: если true — показываем плашку-паузу (24ч локально на фронте)
  * }
  */
