@@ -362,8 +362,13 @@ module.exports = (app) => {
     }
 
     // "UTC+3" -> "+3"
-    let tz = timezone;
-    if (tz && /^UTC[+-]\d+/.test(tz)) tz = tz.replace(/^UTC/, "").parseInt();
+      let tz = timezone;
+      if (tz && /^UTC[+-]\d+/.test(tz)) {
+          tz = tz.replace(/^UTC/, "");  // Remove "UTC" prefix
+          tz = parseInt(tz, 10);        // Convert to integer
+      } else {
+          tz = 0; // or handle invalid/unsupported format appropriately
+      }
 
     try {
       const rows = await CustomerClientPhone.findAll({
