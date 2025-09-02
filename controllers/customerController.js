@@ -482,7 +482,9 @@ module.exports = (app) => {
         });
       }
 
-      if (!resp || !resp.campaignId) {
+      const campaignId = (resp && (resp.campaignId ?? resp.campaign_id ?? resp.id)) || null;
+
+      if (!campaignId) {
         console.error("[scheduler] ERROR: планировщик не вернул campaignId:", resp);
         return res.status(502).json({
           success: false,
@@ -493,14 +495,14 @@ module.exports = (app) => {
 
       const { saveCampaignTimezoneDB } = require("../services/campaignStore");
       // В БД/состоянии для удобства людей храним человекочитаемую строку (+3 / -5.5)
-      await saveCampaignTimezoneDB(resp.campaignId, tzUi, customerId);
+      await saveCampaignTimezoneDB(campaignId, tzUi, customerId);
 
-      if (io) io.emit("campaign_started", { campaignId: resp.campaignId, timezone: tzUi, total: clients.length });
+      if (io) io.emit("campaign_started", { campaignId, timezone: tzUi, total: clients.length });
 
       const { setOnStart } = require("../services/campaignStateStore");
-      setOnStart({ customerId, campaignId: resp.campaignId, timezone: tzUi, message, total: clients.length });
+      setOnStart({ customerId, campaignId, timezone: tzUi, message, total: clients.length });
 
-      return res.status(202).json({ success: true, campaignId: resp.campaignId, scheduled: true });
+      return res.status(202).json({ success: true, campaignId, scheduled: true });
     } catch (e) {
       console.error("[startSending] error:", e);
       return res
