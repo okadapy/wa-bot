@@ -14,12 +14,13 @@ func main() {
 	controller := campaign.NewCampaignController(schedule)
 
 	// Set up routes
-	router := gin.Default()
-	router.POST("/campaigns", controller.CreateNewCampaign)
-	router.GET("/campaigns/:id", controller.GetCampaign)
-	router.POST("/campaigns/:id/stop", controller.StopCampaign)
-	router.POST("/campaigns/:id/start", controller.StartCampaign)
-	router.GET("/campaigns", controller.GetCampaigns)
+	whRouter := app.Group("/wh")
+	router := whRouter.Group("/campaign")
+	router.POST("", controller.CreateNewCampaign)
+	router.GET("/:id", controller.GetCampaign)
+	router.POST("/:id/stop", controller.StopCampaign)
+	router.POST("/:id/start", controller.StartCampaign)
+	router.GET("", controller.GetCampaigns)
 	err := app.Run(":80")
 	if err != nil {
 		panic(err)

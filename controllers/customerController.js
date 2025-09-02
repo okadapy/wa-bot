@@ -363,7 +363,7 @@ module.exports = (app) => {
 
     // "UTC+3" -> "+3"
     let tz = timezone;
-    if (tz && /^UTC[+-]\d+/.test(tz)) tz = tz.replace(/^UTC/, "");
+    if (tz && /^UTC[+-]\d+/.test(tz)) tz = tz.replace(/^UTC/, "").parseInt();
 
     try {
       const rows = await CustomerClientPhone.findAll({

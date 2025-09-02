@@ -29,6 +29,10 @@ module.exports = (db) => {
     throw e;
   }
 
+  router.get("/", (req, res) => {
+      res.redirect("/login")
+  })
+
   router.get("/login", authController.getLoginPage);
   router.post("/login", authController.login);
   router.get("/logout", authController.logout);
