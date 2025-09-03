@@ -1,10 +1,10 @@
 // routes/webhook.js
 const express = require("express");
 const router = express.Router();
-const verifySchedulerSignature = require("../middleware/verifySchedulerSignature");
+// const verifySchedulerSignature = require("../middleware/verifySchedulerSignature"); // временно не используем
 const { schedulerSendWebhook } = require("../controllers/webhookController");
 
-// локальный парсер JSON после сырого тела
+// Локальный парсер JSON после сырого тела
 function parseJSONBody(req, res, next) {
   if (Buffer.isBuffer(req.body)) {
     try {
@@ -16,9 +16,16 @@ function parseJSONBody(req, res, next) {
   next();
 }
 
-// ВАЖНО: только для /wh/send даём express.raw, чтобы не ломать формы/логин
-// TODO: вернуть verifySchedulerSignature, когда настроим подпись
-//router.post("/send", express.raw({ type: "application/json" }), parseJSONBody, verifySchedulerSignature, schedulerSendWebhook);
-router.post("/send", (req, res) => res.status(202).json({ ok: true, bare: true }));
+// Хелсчек, чтобы видеть, что это ТОТ инстанс
+router.get("/health", (req, res) => res.json({ ok: true, v: "webhooks-active" }));
+
+// ВАЖНО: только для /wh/send даём express.raw, чтобы сохранить исходное тело для подписи (на будущее)
+router.post(
+  "/send",
+  express.raw({ type: "application/json" }),
+  // verifySchedulerSignature, // <-- включишь позже
+  parseJSONBody,
+  schedulerSendWebhook
+);
 
 module.exports = router;

@@ -468,12 +468,16 @@ module.exports = (app) => {
       let resp;
       try {
         resp = await startCampaignOnScheduler(payload);
-        console.log("[scheduler] RESPONSE /wh/campaign RAW:", JSON.stringify(resp, null, 2));
+        console.log(
+          "[scheduler] raw typeof:",
+          typeof resp,
+          Array.isArray(resp) ? "array" : resp && resp.constructor && resp.constructor.name
+        );
+        console.log("[scheduler] raw resp:", JSON.stringify(resp, null, 2));
         console.log("[scheduler] fields:", {
-          campaignId_raw: resp.campaignId,
-          campaign_id_raw: resp.campaign_id,
-          id_raw: resp.id,
-          typeof_resp: typeof resp,
+          campaignId_raw: resp && resp.campaignId,
+          campaign_id_raw: resp && resp.campaign_id,
+          id_raw: resp && resp.id,
         });
       } catch (e) {
         console.error("[scheduler] ERROR /wh/campaign:", e?.message || e);
@@ -495,7 +499,7 @@ module.exports = (app) => {
        }
       */
 
-      const campaignId = (resp && (resp.campaignId ?? resp.campaign_id ?? resp.id)) || null;
+      const campaignId = resp?.campaignId || null;
 
       if (!campaignId) {
         console.error("[scheduler] ERROR: планировщик не вернул campaignId:", resp);
