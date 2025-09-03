@@ -193,7 +193,7 @@ func (w *Worker) processBatch() {
 	}
 
 	if err := w.sendMessage(); err != nil {
-		w.logger.Printf("ERROR: Failed to send message for campaign %d: %v", w.campaign.ID, err)
+		w.logger.Printf("ERROR: Failed to send message for campaign %d: %v", w.campaign.ID, err.Error())
 		w.setRandomCooldown()
 		return
 	}
@@ -271,7 +271,7 @@ func (w *Worker) sendMessage() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %d, message: %s", resp.StatusCode, resp.Body)
 	}
 
 	return nil
