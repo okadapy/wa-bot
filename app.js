@@ -99,6 +99,17 @@ async function startServer() {
     app.set("view engine", "hbs");
     app.set("views", path.join(__dirname, "views"));
 
+    //Пропускаем все для тестов
+    app.use((req, res, next) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS,PUT,DELETE");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      if (req.method === "OPTIONS") {
+        return res.sendStatus(204);
+      }
+      next();
+    });
+
     // 4) Middleware
     app.use(express.urlencoded({ extended: true }));
     // Webhook от планировщика
