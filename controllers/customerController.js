@@ -470,6 +470,8 @@ module.exports = (app) => {
         resp = await startCampaignOnScheduler(payload);
         console.log("[scheduler] RESPONSE /wh/campaign:");
         console.log(JSON.stringify(resp, null, 2));
+        console.log("[scheduler] raw response keys:", Object.keys(resp || {}));
+        console.log("[scheduler] raw response:", JSON.stringify(resp, null, 2));
       } catch (e) {
         console.error("[scheduler] ERROR /wh/campaign:", e?.message || e);
         if (e?.response) {
