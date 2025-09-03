@@ -20,8 +20,8 @@ function parseJSONBody(req, res, next) {
 router.post(
   "/send",
   express.raw({ type: "application/json" }),
-  verifySchedulerSignature,
-  parseJSONBody,
+  //verifySchedulerSignature,
+  // parseJSONBody,
   schedulerSendWebhook
 );
 

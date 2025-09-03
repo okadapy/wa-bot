@@ -33,15 +33,16 @@ func (s Status) String() string {
 
 type ClientDTO struct {
 	Name        string `json:"name"`
-	PhoneNumber string `json:"phone_number"`
+	PhoneNumber string `json:"phone"`
 }
 
 type DTO struct {
 	CustomerID int         `json:"customer_id"`
 	Timezone   int         `json:"timezone"`
 	Clients    []ClientDTO `json:"clients"`
-	MaxMsg     int         `json:"max_msg"`
-	MsgText    string      `json:"msg_text"`
+	MaxMsg     int         `json:"max_clients"`
+	MsgText    string      `json:"message"`
+	MaxDaily   int         `json:"daily_limit"`
 }
 
 type Campaign struct {

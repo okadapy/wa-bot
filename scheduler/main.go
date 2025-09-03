@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"wa-bot/scheduler/src/campaign"
 
 	"github.com/gin-gonic/gin"
@@ -9,8 +10,10 @@ import (
 func main() {
 	app := gin.Default()
 
+	logger := log.Default()
+
 	// Initialize the scheduler and controller
-	schedule := campaign.NewScheduler()
+	schedule := campaign.NewScheduler(logger)
 	controller := campaign.NewCampaignController(schedule)
 
 	// Set up routes
