@@ -28,7 +28,7 @@ const initModels = require("./models");
 const whatsappService = require("./services/whatsappService");
 const authRoutes = require("./routes/authRoutes");
 const customerRoutes = require("./routes/customerRoutes");
-const {Sequelize} = require("sequelize");
+const { Sequelize } = require("sequelize");
 
 const app = express();
 const server = http.createServer(app);
@@ -46,27 +46,23 @@ async function startServer() {
     const sequelize = await sequelizePromise;
     const db = initModels(sequelize);
 
-      try{
-          await db.TariffPlan.create(
-              {
-                  name: "Тестовый",
-                  max_clients: 10,
-                  message_limit_daily: 10,
-                  price: 0,
-              }
-          )
+    try {
+      await db.TariffPlan.create({
+        name: "Тестовый",
+        max_clients: 10,
+        message_limit_daily: 10,
+        price: 0,
+      });
 
-          await db.Customer.create(
-              {
-                  name: process.env.CUSTOMER_NAME,
-                  login_phone: process.env.CUSTOMER_PHONE,
-                  hashed_password: process.env.CUSTOMER_PASSWORD,
-                  tariff_plan_id: 1
-              }
-          )
-      } catch (e) {
-          console.error("[app.js] не получилось создать пользователя и тестовый тариф.")
-      }
+      await db.Customer.create({
+        name: process.env.CUSTOMER_NAME,
+        login_phone: process.env.CUSTOMER_PHONE,
+        hashed_password: process.env.CUSTOMER_PASSWORD,
+        tariff_plan_id: 1,
+      });
+    } catch (e) {
+      console.error("[app.js] не получилось создать пользователя и тестовый тариф.");
+    }
 
     // 2) Сессии
     const sessionStore = new SequelizeStore({
@@ -105,6 +101,9 @@ async function startServer() {
 
     // 4) Middleware
     app.use(express.urlencoded({ extended: true }));
+    // Webhook от планировщика
+    const webhookRoutes = require("./routes/webhooks");
+    app.use("/wh", webhookRoutes);
     app.use(express.json());
     app.use(
       fileUpload({
@@ -131,10 +130,6 @@ async function startServer() {
     // 8) Роуты
     app.use("/", authRoutes(db));
     app.use("/customer", customerRoutes(app));
-
-    // Webhook от планировщика
-    const webhookRoutes = require("./routes/webhooks");
-    app.use("/wh", webhookRoutes);
 
     // 9) Fallback-эндпоинт для получения текущего QR как PNG
     app.get("/qr.png", async (req, res) => {
@@ -199,18 +194,16 @@ async function startServer() {
       console.log(`Сервер запущен на http://localhost:${port}`);
     });
 
-    await db.Customer.sync()
-      await db.TariffPlan.sync()
-      await db.CustomerClient.sync()
-     await  db.CustomerClientPhone.sync()
-
-
+    await db.Customer.sync();
+    await db.TariffPlan.sync();
+    await db.CustomerClient.sync();
+    await db.CustomerClientPhone.sync();
   } catch (err) {
     console.error("Ошибка инициализации приложения:", err);
     process.exit(1);
   }
 }
 
-startServer().then(() => {}).catch(
-    (error) => console.log(error)
-);
+startServer()
+  .then(() => {})
+  .catch((error) => console.log(error));
