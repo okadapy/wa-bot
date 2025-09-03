@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -141,6 +142,7 @@ func (w *Worker) Run() {
 				w.mu.Lock()
 				w.campaign.Status = COMPLETED
 				w.mu.Unlock()
+				w.stopChan <- struct{}{}
 				return
 			}
 		}
@@ -198,15 +200,16 @@ func (w *Worker) processBatch() {
 		return
 	}
 
+	w.logger.Printf("INFO: Sent message %d/%d for campaign %d", w.currentID, len(w.campaign.Clients), w.campaign.ID)
+
+	w.setRandomCooldown()
+
 	w.mu.Lock()
 	w.campaign.Sent++
 	w.sentCount++
 	w.currentID++
-	w.setRandomCooldown()
 	w.lastSent = time.Now()
 	w.mu.Unlock()
-
-	w.logger.Printf("INFO: Sent message %d/%d for campaign %d", w.currentID, len(w.campaign.Clients), w.campaign.ID)
 }
 
 func (w *Worker) isWithinAllowedTime() bool {
@@ -270,8 +273,9 @@ func (w *Worker) sendMessage() error {
 	}
 	defer resp.Body.Close()
 
+	resp_body, err := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d, message: %s", resp.StatusCode, resp.Body)
+		return fmt.Errorf("unexpected status code: %d, message: %s", resp.StatusCode, resp_body)
 	}
 
 	return nil
