@@ -17,12 +17,7 @@ function parseJSONBody(req, res, next) {
 }
 
 // ВАЖНО: только для /wh/send даём express.raw, чтобы не ломать формы/логин
-router.post(
-  "/send",
-  express.raw({ type: "application/json" }),
-  //verifySchedulerSignature,
-  parseJSONBody,
-  schedulerSendWebhook
-);
+// TODO: вернуть verifySchedulerSignature, когда настроим подпись
+router.post("/send", express.raw({ type: "application/json" }), parseJSONBody, schedulerSendWebhook);
 
 module.exports = router;
