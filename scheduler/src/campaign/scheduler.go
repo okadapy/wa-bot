@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -19,14 +20,15 @@ const (
 	allowedStartHour = 10
 	allowedEndHour   = 21
 	dailyResetPeriod = 24 * time.Hour
-	checkInterval    = 1 * time.Minute
+	checkInterval    = 5 * time.Second
 )
 
 type Scheduler struct {
 	mu        sync.Mutex
 	wg        sync.WaitGroup
 	senderURL string
-	workers   map[*Campaign]*Worker // Track workers by campaign reference
+	workers   map[*Campaign]*Worker
+	logger    *log.Logger
 }
 
 type SendMessageRequest struct {
@@ -42,15 +44,20 @@ type Worker struct {
 	cooldown  time.Duration
 	startedAt time.Time
 	sentCount int
-	campaign  *Campaign // Reference to the original campaign
+	campaign  *Campaign
 	senderURL string
 	stopChan  chan struct{}
+	logger    *log.Logger
 }
 
-func NewScheduler() *Scheduler {
+func NewScheduler(logger *log.Logger) *Scheduler {
+	if logger == nil {
+		logger = log.Default()
+	}
 	return &Scheduler{
 		senderURL: defaultSenderURL,
 		workers:   make(map[*Campaign]*Worker),
+		logger:    logger,
 	}
 }
 
@@ -61,22 +68,24 @@ func (s *Scheduler) Start(c *Campaign) {
 
 	// Check if this campaign is already being processed
 	if _, exists := s.workers[c]; exists {
-		log.Printf("Campaign is already being processed")
+		s.logger.Printf("WARN: Campaign %d is already being processed", c.ID)
 		return
 	}
 
-	worker := NewWorker(c, s.senderURL)
+	worker := NewWorker(c, s.senderURL, s.logger)
 	s.workers[c] = worker
 
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		s.logger.Printf("INFO: Starting worker for campaign %d", c.ID)
 		worker.Run()
 
 		// Clean up when worker finishes
 		s.mu.Lock()
 		delete(s.workers, c)
 		s.mu.Unlock()
+		s.logger.Printf("INFO: Worker for campaign %d completed", c.ID)
 	}()
 }
 
@@ -86,8 +95,11 @@ func (s *Scheduler) Stop(c *Campaign) {
 	defer s.mu.Unlock()
 
 	if worker, exists := s.workers[c]; exists {
+		s.logger.Printf("INFO: Stopping worker for campaign %d", c.ID)
 		worker.Stop()
 		delete(s.workers, c)
+	} else {
+		s.logger.Printf("WARN: Attempted to stop non-existent worker for campaign %d", c.ID)
 	}
 }
 
@@ -96,16 +108,17 @@ func (s *Scheduler) Wait() {
 	s.wg.Wait()
 }
 
-func NewWorker(c *Campaign, senderURL string) *Worker {
+func NewWorker(c *Campaign, senderURL string, logger *log.Logger) *Worker {
 	return &Worker{
 		currentID: 0,
 		lastSent:  time.Now(),
 		cooldown:  minCooldown,
 		startedAt: time.Now(),
 		sentCount: 0,
-		campaign:  c, // Store reference to original campaign
+		campaign:  c,
 		senderURL: senderURL,
 		stopChan:  make(chan struct{}),
+		logger:    logger,
 	}
 }
 
@@ -113,15 +126,23 @@ func (w *Worker) Run() {
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
 
+	w.logger.Printf("INFO: Starting processing for campaign %d (%d clients)", w.campaign.ID, len(w.campaign.Clients))
+
 	for {
 		select {
 		case <-w.stopChan:
+			w.logger.Printf("INFO: Received stop signal for campaign %d", w.campaign.ID)
 			return
 		case <-ticker.C:
 			w.processBatch()
 
 			// Check if we've processed all clients
 			if w.currentID >= len(w.campaign.Clients) {
+				w.logger.Printf("INFO: Campaign %d completed. Total messages sent: %d", w.campaign.ID, w.sentCount)
+				w.mu.Lock()
+				w.campaign.Status = COMPLETED
+				w.mu.Unlock()
+				w.stopChan <- struct{}{}
 				return
 			}
 		}
@@ -132,16 +153,35 @@ func (w *Worker) Stop() {
 	close(w.stopChan)
 }
 
+func (w *Worker) hasReachedMaxCount() bool {
+	if w.campaign.MaxMsg == 0 {
+		return false
+	}
+	return w.campaign.Sent-w.campaign.MaxMsg == 0
+}
+
 func (w *Worker) processBatch() {
+	campaign, err := json.Marshal(w.campaign)
+	if err == nil {
+		w.logger.Printf("DEBUG: %s\n", campaign)
+	}
 	if !w.isWithinAllowedTime() {
+		w.logger.Printf("DEBUG: Outside allowed time window for campaign %d", w.campaign.ID)
 		return
 	}
 
 	if w.shouldResetDailyCount() {
+		w.logger.Printf("INFO: Resetting daily count for campaign %d", w.campaign.ID)
 		w.resetDailyCount()
 	}
 
 	if w.hasReachedDailyLimit() {
+		w.logger.Printf("DEBUG: Daily limit reached for campaign %d", w.campaign.ID)
+		return
+	}
+
+	if w.hasReachedMaxCount() {
+		w.logger.Printf("DEBUG: Max count reached for campaign %d", w.campaign.ID)
 		return
 	}
 
@@ -150,21 +190,24 @@ func (w *Worker) processBatch() {
 	}
 
 	if !w.isCampaignActive() {
+		w.logger.Printf("DEBUG: Campaign %d is not active", w.campaign.ID)
 		return
 	}
 
 	if err := w.sendMessage(); err != nil {
-		log.Printf("Failed to send message: %v", err)
+		w.logger.Printf("ERROR: Failed to send message for campaign %d: %v", w.campaign.ID, err.Error())
 		w.setRandomCooldown()
 		return
 	}
 
-	// Update the original campaign's Sent count
+	w.logger.Printf("INFO: Sent message %d/%d for campaign %d", w.currentID, len(w.campaign.Clients), w.campaign.ID)
+
+	w.setRandomCooldown()
+
 	w.mu.Lock()
-	w.campaign.Sent++ // This modifies the original campaign
+	w.campaign.Sent++
 	w.sentCount++
 	w.currentID++
-	w.setRandomCooldown()
 	w.lastSent = time.Now()
 	w.mu.Unlock()
 }
@@ -190,10 +233,15 @@ func (w *Worker) hasReachedDailyLimit() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	maxAllowed := w.campaign.MaxMsg
+	maxAllowed := w.campaign.MaxDaily
 	if maxAllowed > 100 {
 		maxAllowed = 100
 	}
+
+	if maxAllowed < 25 {
+		maxAllowed = 25
+	}
+
 	return w.sentCount >= maxAllowed
 }
 
@@ -201,7 +249,7 @@ func (w *Worker) sendMessage() error {
 	w.mu.Lock()
 	if w.currentID >= len(w.campaign.Clients) {
 		w.mu.Unlock()
-		return fmt.Errorf("currentID exceeds client list length")
+		return fmt.Errorf("currentID %d exceeds client list length %d", w.currentID, len(w.campaign.Clients))
 	}
 
 	client := w.campaign.Clients[w.currentID]
@@ -225,8 +273,9 @@ func (w *Worker) sendMessage() error {
 	}
 	defer resp.Body.Close()
 
+	resp_body, err := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %d, message: %s", resp.StatusCode, resp_body)
 	}
 
 	return nil
