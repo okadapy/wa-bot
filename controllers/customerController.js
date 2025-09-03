@@ -468,10 +468,13 @@ module.exports = (app) => {
       let resp;
       try {
         resp = await startCampaignOnScheduler(payload);
-        console.log("[scheduler] RESPONSE /wh/campaign:");
-        console.log(JSON.stringify(resp, null, 2));
-        console.log("[scheduler] raw response keys:", Object.keys(resp || {}));
-        console.log("[scheduler] raw response:", JSON.stringify(resp, null, 2));
+        console.log("[scheduler] RESPONSE /wh/campaign RAW:", JSON.stringify(resp, null, 2));
+        console.log("[scheduler] fields:", {
+          campaignId_raw: resp.campaignId,
+          campaign_id_raw: resp.campaign_id,
+          id_raw: resp.id,
+          typeof_resp: typeof resp,
+        });
       } catch (e) {
         console.error("[scheduler] ERROR /wh/campaign:", e?.message || e);
         if (e?.response) {
