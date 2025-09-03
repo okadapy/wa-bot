@@ -30,6 +30,7 @@ type Scheduler struct {
 }
 
 type SendMessageRequest struct {
+	CampaignID  int    `json:"campaign_id"`
 	PhoneNumber string `json:"phoneNumber"`
 	MsgText     string `json:"msgText"`
 }
@@ -208,6 +209,7 @@ func (w *Worker) sendMessage() error {
 	w.mu.Unlock()
 
 	smrq := SendMessageRequest{
+		CampaignID:  w.campaign.ID,
 		PhoneNumber: client.PhoneNumber,
 		MsgText:     msgText,
 	}

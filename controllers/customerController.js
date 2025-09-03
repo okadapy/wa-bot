@@ -481,6 +481,14 @@ module.exports = (app) => {
           message: "Планировщик недоступен или вернул ошибку.",
         });
       }
+      /*
+      {
+
+           "campaign_id": 1,
+
+           "message": "Campaign created successfully"
+       }
+      */
 
       const campaignId = (resp && (resp.campaignId ?? resp.campaign_id ?? resp.id)) || null;
 

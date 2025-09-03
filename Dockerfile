@@ -15,8 +15,6 @@ COPY package*.json ./
 # Copy application files
 COPY . .
 
-RUN npm i npm -g
-
 # Expose application port
 EXPOSE 3000
 
