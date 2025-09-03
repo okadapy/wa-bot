@@ -2,50 +2,62 @@
 const axios = require("axios");
 
 const BASE = process.env.SCHEDULER_BASE_URL || "http://scheduler:80";
-const RESULT_URL = process.env.SCHEDULER_RESULT_URL || `${BASE}/wh/campaign/result/`;
+const RESULT_URL = process.env.SCHEDULER_RESULT_URL || `${BASE}/wh/campaign/result`;
 
 function normalizeResponsePayload(raw) {
-  // если пришла строка — попробуем распарсить
+  // Buffer? -> попробуем распарсить как JSON
+  if (raw && Buffer.isBuffer(raw)) {
+    const s = raw.toString("utf8");
+    try {
+      return normalizeResponsePayload(JSON.parse(s));
+    } catch {
+      return { value: s, campaignId: null };
+    }
+  }
+
   let data = raw;
   if (typeof data === "string") {
     try {
       data = JSON.parse(data);
     } catch {
-      /* оставим как есть */
+      /* оставим строку */
     }
   }
-  // если и после этого не объект — завернём в объект
   if (data === null || typeof data !== "object") {
     data = { value: data };
   }
-  // добавим универсальное поле campaignId
   const campaignId = data.campaignId ?? data.campaign_id ?? data.id ?? null;
   return { ...data, campaignId };
 }
 
 async function startCampaignOnScheduler(payload) {
   const url = `${BASE}/wh/campaign`;
-  const { data } = await axios.post(url, payload, { timeout: 15000, validateStatus: () => true });
+  const { data } = await axios.post(url, payload, {
+    timeout: 15000,
+    validateStatus: () => true,
+    headers: { "Content-Type": "application/json" },
+  });
   return normalizeResponsePayload(data);
 }
 
 async function stopCampaignOnScheduler(campaignId, body = {}) {
   const url = `${BASE}/wh/campaign/${encodeURIComponent(campaignId)}/stop`;
-  const { data } = await axios.post(url, body, { timeout: 15000, validateStatus: () => true });
+  const { data } = await axios.post(url, body, {
+    timeout: 15000,
+    validateStatus: () => true,
+    headers: { "Content-Type": "application/json" },
+  });
   return normalizeResponsePayload(data);
 }
-
-/**
- * Репорт результата назад в планировщик.
- * Для MVP taskId не используем — микросервис его игнорирует.
- */
+const SCHEDULER_RESULT_DISABLED = true;
 async function postResultToScheduler(resultPayload) {
-  const { data } = await axios.post(RESULT_URL, resultPayload, { timeout: 15000, validateStatus: () => true });
+  if (SCHEDULER_RESULT_DISABLED) return { skipped: true };
+  const { data } = await axios.post(RESULT_URL, resultPayload, {
+    timeout: 15000,
+    validateStatus: () => true,
+    headers: { "Content-Type": "application/json" },
+  });
   return normalizeResponsePayload(data);
 }
 
-module.exports = {
-  startCampaignOnScheduler,
-  stopCampaignOnScheduler,
-  postResultToScheduler,
-};
+module.exports = { startCampaignOnScheduler, stopCampaignOnScheduler, postResultToScheduler };
