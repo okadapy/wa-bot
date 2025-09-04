@@ -16,6 +16,13 @@ func main() {
 	schedule := campaign.NewScheduler(logger)
 	controller := campaign.NewCampaignController(schedule)
 
+	app.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "ok",
+		})
+
+	})
+
 	// Set up routes
 	whRouter := app.Group("/wh")
 	router := whRouter.Group("/campaign")

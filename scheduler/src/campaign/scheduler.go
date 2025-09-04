@@ -37,6 +37,11 @@ type SendMessageRequest struct {
 	MsgText     string `json:"msgText"`
 }
 
+type SendMessageRequestPausingState struct {
+	SendMessageRequest
+	Pausing bool `json:"pausing"`
+}
+
 type Worker struct {
 	mu        sync.Mutex
 	lastSent  time.Time
@@ -200,16 +205,14 @@ func (w *Worker) processBatch() {
 		return
 	}
 
-	w.logger.Printf("INFO: Sent message %d/%d for campaign %d", w.currentID, len(w.campaign.Clients), w.campaign.ID)
-
-	w.setRandomCooldown()
-
 	w.mu.Lock()
 	w.campaign.Sent++
 	w.sentCount++
 	w.currentID++
 	w.lastSent = time.Now()
 	w.mu.Unlock()
+	w.setRandomCooldown()
+	w.logger.Printf("INFO: Sent message %d/%d for campaign %d", w.currentID, len(w.campaign.Clients), w.campaign.ID)
 }
 
 func (w *Worker) isWithinAllowedTime() bool {
@@ -256,10 +259,13 @@ func (w *Worker) sendMessage() error {
 	msgText := strings.Replace(w.campaign.MsgText, "((клиент))", client.Name, -1)
 	w.mu.Unlock()
 
-	smrq := SendMessageRequest{
-		CampaignID:  w.campaign.ID,
-		PhoneNumber: client.PhoneNumber,
-		MsgText:     msgText,
+	smrq := SendMessageRequestPausingState{
+		SendMessageRequest: SendMessageRequest{
+			CampaignID:  w.campaign.ID,
+			PhoneNumber: client.PhoneNumber,
+			MsgText:     msgText,
+		},
+		Pausing: w.hasReachedDailyLimit(),
 	}
 
 	body, err := json.Marshal(smrq)
