@@ -124,7 +124,7 @@ func (c *Cache) UpdateCampaignStatus(id int, status Status) error {
 
 	// Handle scheduler based on status change
 	if campaign.Status == ACTIVE && status == PAUSED {
-		c.scheduler.Stop(campaign)
+		c.scheduler.Stop(campaign.ID)
 	} else if campaign.Status == PAUSED && status == ACTIVE {
 		c.scheduler.Start(campaign)
 	}
