@@ -1,20 +1,31 @@
 // controllers/webhookController.js
 
 const whatsappService = require("../services/whatsappService");
-const { postResultToScheduler } = require("../services/schedulerClient");
+// Больше НЕ репортим результат отдельным запросом:
+// const { postResultToScheduler } = require("../services/schedulerClient");
 const { getCustomerIdByCampaignDB } = require("../services/campaignStore");
 const { bumpProgress } = require("../services/campaignStateStore");
 const { enterOnce } = require("../services/dedupStore");
 
+const SLEEP_MS_BETWEEN_RETRIES = 8000; // 8 секунд
+const MAX_ATTEMPTS = 3; // 1 первичный + 2 ретрая = 3 попытки
+
+function sleep(ms) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
 /**
  * Вебхук от планировщика: задание на отправку сообщения ИЛИ сигнал паузы.
  *
- * Поддерживаются camelCase и snake_case, а также поле "sent" вместо msg_send_count.
+ * Поддерживаем:
+ * - camelCase / snake_case поля
+ * - "sent" вместо msg_send_count
+ * - pausing: true|false
  *
  * Пример входа:
  * {
- *   "campaignId"|"campaign_id": "cmp_123",
- *   "taskId"|"task_id":         (не обязателен в MVP),
+ *   "campaignId"|"campaign_id": 1,
+ *   "taskId"|"task_id": (в MVP не обязателен),
  *   "phoneNumber"|"phone_number": "+79001234567",
  *   "msgText"|"msg_text": "Привет!",
  *   "msgSendCount"|"msg_send_count"|"sent": 37,
@@ -28,19 +39,14 @@ exports.schedulerSendWebhook = async (req, res) => {
 
     // ===== Нормализация входящих полей =====
     const campaignId = body.campaignId ?? body.campaign_id ?? body.campaignID ?? null;
-
-    // Микросервис в MVP не использует taskId. Для совместимости фронта
-    // будем передавать taskId = phoneNumber (ниже), но это локальная штука.
     const phoneNumberRaw = body.phoneNumber ?? body.phone_number ?? null;
 
     const msgTextRaw = body.msgText ?? body.msg_text ?? "";
     const msgText = typeof msgTextRaw === "string" ? msgTextRaw : String(msgTextRaw || "");
 
-    // Новое поле "sent" от микросервиса: используем как msgSendCount.
     const msgSendCountVal = body.msgSendCount ?? body.msg_send_count ?? body.sent;
     const msgSendCount = Number.isFinite(Number(msgSendCountVal)) ? Number(msgSendCountVal) : null;
 
-    // pausing может прийти как boolean или строка "true"/"false"
     const pausingFlag =
       typeof body.pausing === "boolean"
         ? body.pausing
@@ -57,14 +63,14 @@ exports.schedulerSendWebhook = async (req, res) => {
       try {
         io && io.emit("campaign_pausing", { pausing: true, campaignId });
       } catch (_) {}
-      // В паузе сообщение не отправляем
+      // Ничего не отправляем — просто подтверждаем
       return res.status(202).json({ success: true, pausing: true });
     }
     if (pausingFlag === false) {
       try {
         io && io.emit("campaign_pausing", { pausing: false, campaignId });
       } catch (_) {}
-      // после снятия паузы ниже может идти обычное задание
+      // продолжаем обработку — могло прийти и задание
     }
 
     // ======= Обычное задание на отправку =======
@@ -72,19 +78,17 @@ exports.schedulerSendWebhook = async (req, res) => {
       return res.status(422).json({ success: false, message: "phoneNumber и msgText обязательны" });
     }
 
-    // Нормализуем телефон (ключ всегда в цифрах)
+    // Нормализуем телефон (ключ — только цифры)
     const normalizedPhone = String(phoneNumberRaw).replace(/\D+/g, "");
     const phoneNumber = normalizedPhone || String(phoneNumberRaw);
 
     // === Дедуп по (campaignId, phoneNumber) с TTL ===
     const ttlSec = Number(process.env.DEDUP_TTL_SEC);
-    const ttlMs = Number.isFinite(ttlSec) && ttlSec > 0 ? Math.floor(ttlSec * 1000) : 300_000; // дефолт 300с (5 минут)
-
+    const ttlMs = Number.isFinite(ttlSec) && ttlSec > 0 ? Math.floor(ttlSec * 1000) : 30_000; // 30 сек по умолчанию
     const key = `${campaignId}|${phoneNumber}`;
 
-    // Если такой ключ уже в работе/недавно был — игнорим дубликат
     if (!enterOnce(key, ttlMs)) {
-      // Можно мягко подсветить фронту, что пришёл дубликат, но это не обязательно:
+      // Дубликат — молча подтверждаем, но фронт можно проинформировать
       try {
         io &&
           io.emit("campaign_progress", {
@@ -110,24 +114,29 @@ exports.schedulerSendWebhook = async (req, res) => {
         });
     } catch (_) {}
 
-    // Отправляем в WhatsApp
-    const result = await whatsappService.sendWhatsAppMessage(phoneNumber, msgText);
+    // ======= Отправка в WhatsApp с ретраями =======
+    let attempt = 0;
+    let lastErr = null;
+    let waResult = null;
 
-    if (result && result.success) {
-      // Репортим в планировщик: OK (без taskId в MVP)
-      // При желании можно передать taskId: phoneNumber — микросервис его проигнорирует.
+    while (attempt < MAX_ATTEMPTS) {
+      attempt += 1;
       try {
-        await postResultToScheduler({
-          campaignId,
-          phoneNumber,
-          status: "sent",
-          messageId: result.messageId || null,
-        });
+        waResult = await whatsappService.sendWhatsAppMessage(phoneNumber, msgText);
+        if (waResult && waResult.success) break; // успех — выходим из цикла
+        lastErr = new Error(waResult?.message || "send_failed");
       } catch (e) {
-        console.warn("[webhook] postResultToScheduler(sent) failed:", e?.message || e);
+        lastErr = e;
       }
 
-      // Обновляем фронт
+      // если не последняя попытка — подождать и попробовать ещё
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(SLEEP_MS_BETWEEN_RETRIES);
+      }
+    }
+
+    if (waResult && waResult.success) {
+      // Успех: обновим фронт, локальный счётчик, вернём 202
       try {
         io &&
           io.emit("campaign_progress", {
@@ -139,29 +148,22 @@ exports.schedulerSendWebhook = async (req, res) => {
           });
       } catch (_) {}
 
-      // Локальный счётчик (для снапшота)
       try {
         const customerId = await getCustomerIdByCampaignDB(campaignId);
         if (customerId) bumpProgress({ customerId, ok: true });
       } catch (_) {}
 
-      return res.status(202).json({ success: true });
-    }
-
-    // Ошибка отправки
-    const errMsg = (result && result.message) || "send_failed";
-
-    try {
-      await postResultToScheduler({
-        campaignId,
-        phoneNumber,
-        status: "failed",
-        error: errMsg,
+      // ВАЖНО: теперь отвечаем УСПЕШНО прямо на вебхук — без отдельного /result
+      return res.status(202).json({
+        success: true,
+        status: "sent",
+        attempts: attempt,
+        messageId: waResult.messageId || null,
       });
-    } catch (e) {
-      console.warn("[webhook] postResultToScheduler(failed) failed:", e?.message || e);
     }
 
+    // Полностью не удалось
+    const errMsg = lastErr?.message || "send_failed";
     try {
       io &&
         io.emit("campaign_error", {
@@ -177,7 +179,12 @@ exports.schedulerSendWebhook = async (req, res) => {
       if (customerId) bumpProgress({ customerId, ok: false });
     } catch (_) {}
 
-    return res.status(409).json({ success: false, message: errMsg });
+    return res.status(409).json({
+      success: false,
+      status: "failed",
+      attempts: attempt,
+      error: errMsg,
+    });
   } catch (e) {
     console.error("[/wh/send] unexpected error:", e);
     return res.status(500).json({ success: false, message: "internal_error" });
