@@ -28,13 +28,9 @@ services:
     build:
       context: ./scheduler
     ports:
-      - "80:2000"
+      - "2000:80"
+      - "80:80"
     command: go run .
-#    healthcheck:
-#      test: ["CMD", "curl", "http://scheduler:2000/health"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 5
 
   db:
     image: mysql
