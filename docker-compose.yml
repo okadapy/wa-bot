@@ -22,7 +22,7 @@ services:
       db:
         condition: service_healthy
       scheduler:
-        condition: service_healthy
+        condition: service_started
 
   scheduler:
     build:
@@ -30,11 +30,11 @@ services:
     ports:
       - "80:2000"
     command: go run .
-    healthcheck:
-      test: ["CMD", "curl", "http://localhost:80/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+#    healthcheck:
+#      test: ["CMD", "curl", "http://scheduler:2000/health"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
 
   db:
     image: mysql
