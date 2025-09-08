@@ -32,7 +32,7 @@ type Scheduler struct {
 	mu        sync.RWMutex
 	wg        sync.WaitGroup
 	senderURL string
-	workers   map[int]*Worker // Use campaign ID as key for easier lookup
+	workers   map[int]*Worker
 	logger    *log.Logger
 }
 
@@ -45,6 +45,7 @@ type SendMessageRequest struct {
 type SendMessageRequestPausingState struct {
 	SendMessageRequest
 	Pausing bool `json:"pausing"`
+	Done    bool `json:"done"`
 }
 
 type Worker struct {
@@ -83,7 +84,6 @@ func NewScheduler(logger *log.Logger) *Scheduler {
 	}
 }
 
-// Start begins processing a campaign
 func (s *Scheduler) Start(c *Campaign) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -113,14 +113,12 @@ func (s *Scheduler) Start(c *Campaign) {
 	go func() {
 		defer s.wg.Done()
 		defer s.cleanupWorker(c.ID)
-
 		s.logger.Printf("info: starting worker for campaign %d", c.ID)
 		worker.Run()
 		s.logger.Printf("info: worker for campaign %d completed", c.ID)
 	}()
 }
 
-// Stop halts processing for a specific campaign
 func (s *Scheduler) Stop(campaignID int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -133,7 +131,6 @@ func (s *Scheduler) Stop(campaignID int) {
 	}
 }
 
-// Wait for all campaigns to complete processing
 func (s *Scheduler) Wait() {
 	s.wg.Wait()
 }
@@ -145,6 +142,12 @@ func (s *Scheduler) cleanupWorker(campaignID int) {
 }
 
 func (w *Worker) Run() {
+	if len(w.campaign.Clients) == 0 {
+		w.logger.Printf("warn: campaign %d has no clients", w.campaign.ID)
+		w.sendFinalMessage()
+		return
+	}
+
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
 
@@ -156,15 +159,41 @@ func (w *Worker) Run() {
 		case <-w.ctx.Done():
 			return
 		case <-ticker.C:
-			w.processBatch()
-
 			if w.isCompleted() {
 				w.logger.Printf("info: campaign %d completed. total messages sent: %d",
 					w.campaign.ID, w.sentCount)
+				w.sendFinalMessage()
 				w.setCampaignStatus(COMPLETED)
 				return
 			}
+			w.processBatch()
 		}
+	}
+}
+
+func (w *Worker) sendFinalMessage() {
+	request := SendMessageRequestPausingState{
+		SendMessageRequest: SendMessageRequest{
+			CampaignID: w.campaign.ID,
+		},
+		Done: true,
+	}
+
+	body, err := json.Marshal(request)
+	if err != nil {
+		w.logger.Printf("error: failed to marshal final message: %v", err)
+		return
+	}
+
+	resp, err := http.Post(w.senderURL, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		w.logger.Printf("error: failed to send final message: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < successStatusRange || resp.StatusCode >= successStatusRange+100 {
+		w.logger.Printf("error: final message sending failed with status: %d", resp.StatusCode)
 	}
 }
 
@@ -212,8 +241,8 @@ func (w *Worker) isCompleted() bool {
 
 func (w *Worker) setCampaignStatus(status Status) {
 	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.campaign.Status = status
-	w.mu.Unlock()
 }
 
 func (w *Worker) checkDailyReset() {
@@ -231,12 +260,10 @@ func (w *Worker) hasReachedLimits() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// Check max messages per campaign
 	if w.campaign.MaxMsg > 0 && w.campaign.Sent >= w.campaign.MaxMsg {
 		return true
 	}
 
-	// Check daily limit
 	maxDaily := clamp(w.campaign.MaxDaily, minDailyMessages, maxDailyMessages)
 	return w.sentCount >= maxDaily
 }
@@ -267,6 +294,7 @@ func (w *Worker) sendMessage() error {
 
 	client := w.campaign.Clients[w.currentID]
 	msgText := strings.ReplaceAll(w.campaign.MsgText, "((клиент))", client.Name)
+	isLastMessage := w.currentID == len(w.campaign.Clients)-1
 	w.mu.Unlock()
 
 	request := SendMessageRequestPausingState{
@@ -276,6 +304,7 @@ func (w *Worker) sendMessage() error {
 			MsgText:     msgText,
 		},
 		Pausing: w.hasReachedLimits(),
+		Done:    isLastMessage,
 	}
 
 	body, err := json.Marshal(request)
