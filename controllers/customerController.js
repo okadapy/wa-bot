@@ -569,25 +569,37 @@ module.exports = (app) => {
       return res.status(401).json({ success: false, message: "Не авторизован." });
     }
     const io = app.get("io");
+
     try {
       const existingClientData = whatsappService.getWhatsAppClient();
-      if (
-        existingClientData &&
-        existingClientData.status !== "closed" &&
-        existingClientData.status !== "unauthenticated"
-      ) {
-        console.log(`WhatsAppService: Клиент уже в процессе или активен. Инициализация не требуется.`);
-        io.emit("whatsapp_status", existingClientData.status);
-        if (existingClientData.status === "qr" && existingClientData.qrCode) {
-          io.emit("qr_code", existingClientData.qrCode);
+      const st = existingClientData?.status;
+
+      // Блокируем только если реально активен/в процессе.
+      // Разрешаем запуск при 'closed' | 'unauthenticated' | 'logged_out'
+      const canStart = !st || ["closed", "unauthenticated", "logged_out"].includes(st);
+
+      if (!canStart) {
+        console.log("WhatsAppService: Клиент уже в процессе или активен. Инициализация не требуется.");
+        // Отдадим фронту текущее состояние (как и раньше)
+        try {
+          io.emit("whatsapp_status", st);
+        } catch (_) {}
+        if (st === "qr" && existingClientData.qrCode) {
+          try {
+            io.emit("qr_code", existingClientData.qrCode);
+          } catch (_) {}
         }
-        return res.json({ success: true, message: "Инициализация WhatsApp клиента уже запущена/активна." });
+        return res.json({ success: true, message: "Инициализация уже запущена/активна." });
       }
+
+      // Важно: реальный старт новой сессии (получим 'connecting' -> 'qr')
       await whatsappService.connectToWhatsApp();
-      res.json({ success: true, message: "Подключение WhatsApp клиента запущено." });
+      return res.json({ success: true, message: "Подключение WhatsApp клиента запущено." });
     } catch (error) {
-      console.error(`Ошибка при инициализации WhatsApp:`, error);
-      res.status(500).json({ success: false, message: `Ошибка инициализации WhatsApp: ${error.message}` });
+      console.error("Ошибка при инициализации WhatsApp:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: `Ошибка инициализации WhatsApp: ${error.message || error}` });
     }
   };
 

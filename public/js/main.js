@@ -119,11 +119,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   const setDisabled = (el, v) => {
     if (!el) return;
-    // Для радиокнопок/чекбоксов NodeList:
     if (Array.isArray(el)) {
-      el.forEach((n) => {
-        if (n) n.disabled = !!v;
-      });
+      el.forEach((n) => n && (n.disabled = !!v));
     } else {
       el.disabled = !!v;
     }
@@ -140,7 +137,6 @@ document.addEventListener("DOMContentLoaded", () => {
     updateLocalCounter();
   }
 
-  // (устаревшие хелперы — приведены к MSG_MAXLEN, оставлены на будущее)
   function updateMsgCounter() {
     if (!msgCounter || !msgTemplate) return;
     const len = (msgTemplate.value || "").length;
@@ -228,11 +224,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     msgTemplate.dispatchEvent(new Event("input"));
-    // автозакрытие
     emojiPicker.style.display = "none";
   });
 
-  // ====== ЛОГИКА ГОТОВНОСТИ UI (объявляем РАНЬШЕ, чем используем) ======
+  // ====== ЛОГИКА ГОТОВНОСТИ UI ======
   function getSelectedRadioValue(list) {
     const el = list.find((r) => r && r.checked);
     return el ? el.value : null;
@@ -260,12 +255,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const ready = allParamsReady();
 
-    // обновляем счётчик длины
     if (msgCounter && msgTemplate) {
       msgCounter.textContent = `${(msgTemplate.value || "").length} / ${MSG_MAXLEN}`;
     }
 
-    // статус
     if (ready) {
       overallStatusText.textContent = "Готов";
       overallStatusText.classList.add("status-text-ready");
@@ -275,7 +268,6 @@ document.addEventListener("DOMContentLoaded", () => {
       overallStatusText.classList.remove("status-text-ready", "status-text-running");
     }
 
-    // управление кнопками
     setDisabled(startBtn, !ready);
     setDisabled(stopBtn, true);
   }
@@ -481,6 +473,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const c = d.campaign;
       if (!c) return;
+      if (c.campaignId && !campaignId) campaignId = c.campaignId;
 
       setCounts({
         total: c.total || 0,
@@ -491,22 +484,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const s = c.status || "stopped";
       if (s === "running") {
+        isCampaignActive = true;
         overallStatusText && (overallStatusText.textContent = "В процессе");
         overallStatusText && overallStatusText.classList.add("status-text-running");
         setDisabled(startBtn, true);
         setDisabled(stopBtn, false);
         lockMain();
       } else if (String(s).startsWith("paused_")) {
+        isCampaignActive = true;
         overallStatusText && (overallStatusText.textContent = "На паузе");
         setDisabled(startBtn, true);
         setDisabled(stopBtn, false);
         lockMain();
       } else if (s === "completed") {
+        isCampaignActive = false;
+        campaignId = null;
         overallStatusText && (overallStatusText.textContent = "Завершено");
         setDisabled(startBtn, false);
         setDisabled(stopBtn, true);
         unlockMain();
       } else {
+        isCampaignActive = false;
+        campaignId = null;
         overallStatusText && (overallStatusText.textContent = "Остановлено");
         setDisabled(startBtn, false);
         setDisabled(stopBtn, true);
@@ -525,20 +524,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if (status === "open" || status === "connected") {
       statusText = "Подключено";
       statusClass = "wa-status-connected";
+      hideAlert();
     } else if (status === "qr") {
       statusText = "Ожидание QR-кода";
       statusClass = "wa-status-waiting";
-    } else if (
-      status === "connecting" ||
-      status === "loading" ||
-      status === "reconnecting" ||
-      status === "logged_out"
-    ) {
-      statusText = status === "logged_out" ? "Требуется вход" : "Подключение...";
+    } else if (status === "logged_out") {
+      // <- отдельная ветка: считаем как "отключен, требуется вход"
+      statusText = "Требуется вход";
+      statusClass = "wa-status-disconnected";
+    } else if (status === "connecting" || status === "loading" || status === "reconnecting") {
+      statusText = "Подключение...";
       statusClass = "wa-status-connecting";
     } else {
       statusText = "Не подключен";
       statusClass = "wa-status-disconnected";
+      if (!isCampaignActive) hideAlert();
     }
 
     if (whatsappStatusText) {
@@ -562,12 +562,24 @@ document.addEventListener("DOMContentLoaded", () => {
       hide(connectBtn);
       show(deleteBtn);
       setDisabled(deleteBtn, false);
-    } else if (["qr", "connecting", "loading", "reconnecting", "logged_out"].includes(status)) {
+    } else if (status === "qr") {
       show(connectBtn);
       setDisabled(connectBtn, true);
       show(deleteBtn);
-      setDisabled(deleteBtn, status !== "qr");
+      setDisabled(deleteBtn, false);
+    } else if (status === "logged_out") {
+      // Разрешаем пользователю снова подключиться/удалить сессию
+      show(connectBtn);
+      setDisabled(connectBtn, false);
+      show(deleteBtn);
+      setDisabled(deleteBtn, false);
+    } else if (status === "connecting" || status === "loading" || status === "reconnecting") {
+      show(connectBtn);
+      setDisabled(connectBtn, true);
+      show(deleteBtn);
+      setDisabled(deleteBtn, true);
     } else {
+      // closed / не подключен
       show(connectBtn);
       setDisabled(connectBtn, false);
       hide(deleteBtn);
@@ -575,12 +587,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Модалка QR
-    if (
-      manualConnectRequested &&
-      (status === "connecting" || status === "loading" || status === "reconnecting" || status === "logged_out")
-    ) {
+    if (manualConnectRequested && (status === "connecting" || status === "loading" || status === "reconnecting")) {
       qrModal?.classList.add("active");
-      if (qrContainer) qrContainer.textContent = "Ожидание QR-кода...";
+      if (qrContainer) {
+        qrContainer.innerHTML = "";
+        qrContainer.textContent = "Ожидание QR-кода...";
+      }
       return;
     }
 
@@ -599,10 +611,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
       if (!qrTimerInterval) startQrTimer();
-    } else if (!["connecting", "loading", "reconnecting", "logged_out"].includes(status)) {
-      qrModal?.classList.remove("active");
-      stopQrTimer();
-      isFirstQr = true;
+    } else {
+      // Для всех статусов, кроме "connecting/loading/reconnecting/qr", закрываем модалку
+      if (!["connecting", "loading", "reconnecting", "qr"].includes(status)) {
+        qrModal?.classList.remove("active");
+        stopQrTimer();
+        isFirstQr = true;
+      }
     }
   }
 
@@ -681,7 +696,8 @@ document.addEventListener("DOMContentLoaded", () => {
     stopQrTimer();
     manualConnectRequested = false;
     socket.emit("cancel_qr_flow");
-    updateUI("closed");
+    const next = currentStatus === "logged_out" ? "logged_out" : "closed";
+    updateUI(next);
   });
 
   async function autoConnectIfHasSavedSession() {
@@ -689,7 +705,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const r = await fetch(`/customer/has-saved-session?ts=${Date.now()}`, { cache: "no-store" });
       const d = await r.json().catch(() => null);
       if (!r.ok || !d?.success) return;
-      if (d.exists && (currentStatus === "closed" || currentStatus === "unauthenticated")) {
+      if (
+        d.exists &&
+        (currentStatus === "closed" || currentStatus === "logged_out" || currentStatus === "unauthenticated")
+      ) {
         setDisabled(connectBtn, true);
         await fetch("/customer/init-whatsapp-client", {
           method: "POST",
@@ -716,11 +735,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   socket.on("whatsapp_status", (payload) => {
     const status = payload && payload.state ? payload.state : payload;
-    const transient = ["reconnecting", "connecting", "logged_out"];
+    const transient = ["reconnecting", "connecting", "loading"];
 
     if (status === "qr") {
-      if (manualConnectRequested) updateUI("qr");
-      else updateUI("closed");
+      // Показываем QR всегда, независимо от manualConnectRequested
+      manualConnectRequested = true;
+      qrModal?.classList.add("active");
+      updateUI("qr");
       return;
     }
     if (transient.includes(status)) {
@@ -734,6 +755,17 @@ document.addEventListener("DOMContentLoaded", () => {
       updateOverallReadyState();
       return;
     }
+    if (status === "logged_out") {
+      // если юзер сам нажал "Подключиться" — держим модалку открытой
+      if (manualConnectRequested) {
+        qrModal?.classList.add("active");
+        updateUI("connecting");
+        return;
+      }
+
+      updateUI("logged_out");
+      return;
+    }
     updateUI("closed");
     updateOverallReadyState();
   });
@@ -743,7 +775,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("wa_qr", ({ dataUrl }) => {
-    if (!manualConnectRequested) return;
+    manualConnectRequested = true;
     qrModal?.classList.add("active");
     if (qrContainer) {
       const html = dataUrl ? `<img src="${dataUrl}" alt="QR Code">` : `<span>QR-код готов. Обновите окно.</span>`;
@@ -754,14 +786,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("qr_image", (dataUrl) => {
-    if (!manualConnectRequested) return;
+    manualConnectRequested = true;
     qrModal?.classList.add("active");
     if (qrContainer) qrContainer.innerHTML = `<img src="${dataUrl}" alt="QR Code">`;
     if (currentStatus !== "qr") updateUI("qr");
     if (!qrTimerInterval) startQrTimer();
   });
   socket.on("qr_code", (qrString) => {
-    if (manualConnectRequested) updateUI("qr", qrString);
+    manualConnectRequested = true;
+    updateUI("qr", qrString);
   });
 
   socket.on("qr_flow_cancelled", () => {
@@ -906,7 +939,6 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("Не удалось удалить: " + (e.message || "Ошибка удаления"));
       }
     } finally {
-      // На всякий случай подтянем актуальную сводку
       try {
         if (typeof refreshUploadSummary === "function") await refreshUploadSummary();
       } catch (_) {}
@@ -974,7 +1006,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // ====== Блокировка/разблокировка UI при кампании ======
   function lockMain() {
     document.body.classList.add("campaign-active");
-    // Блокируем основные контролы
     setDisabled(startBtn, true);
     setDisabled(stopBtn, false);
 
@@ -988,14 +1019,12 @@ document.addEventListener("DOMContentLoaded", () => {
     setDisabled(addressingRadios, true);
     setDisabled(msgCountRadios, true);
 
-    // Не даем трогать WhatsApp-сессию во время кампании
     setDisabled(connectBtn, true);
     setDisabled(deleteBtn, true);
   }
 
   function unlockMain() {
     document.body.classList.remove("campaign-active");
-    // Разблокируем с учетом готовности
     setDisabled(stopBtn, true);
     setDisabled(startBtn, !allParamsReady());
 
@@ -1009,7 +1038,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setDisabled(addressingRadios, false);
     setDisabled(msgCountRadios, false);
 
-    // Возвращаем управление сессией WhatsApp
     setDisabled(connectBtn, false);
     setDisabled(deleteBtn, false);
 
@@ -1137,9 +1165,18 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("campaign_stopped", ({ campaignId: id }) => {
-    if (id && id === campaignId) {
-      // UI уже обновили в стопе
-    }
+    if (!campaignId || (id && id !== campaignId)) return;
+    isCampaignActive = false; // NEW
+    campaignId = null; // NEW
+    unlockMain(); // NEW
+    setDisabled(startBtn, !allParamsReady());
+    setDisabled(stopBtn, true);
+    overallStatusText && overallStatusText.classList.remove("status-text-running");
+    overallStatusText && overallStatusText.classList.add("status-text-ready");
+    if (overallStatusText) overallStatusText.textContent = "Остановлено";
+    stopRiskPause();
+    hideAlert();
+    clearInterval(quietHoursTimer);
   });
 
   socket.on("campaign_progress", ({ campaignId: id, taskId, phoneNumber, msgSendCount, status }) => {
@@ -1183,6 +1220,4 @@ document.addEventListener("DOMContentLoaded", () => {
   markAddressingAndDelay();
   autoConnectIfHasSavedSession();
   refreshUploadSummary();
-  updateOverallReadyState();
-  document.body.classList.remove("campaign-active");
 });

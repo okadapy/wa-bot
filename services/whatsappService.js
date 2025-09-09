@@ -1,4 +1,6 @@
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require("@whiskeysockets/baileys");
+// services/whatsappService.js
+
+// ВАЖНО: Baileys теперь ESM-только — подключаем его динамически через import()
 const fs = require("fs");
 const path = require("path");
 const QRCode = require("qrcode"); // генерация PNG QR
@@ -8,7 +10,7 @@ const SESSION_FOLDER = path.join(__dirname, "..", "auth_info_baileys");
 
 let client = {
   sock: null,
-  status: "closed", // 'closed' | 'connecting' | 'open' | 'qr'
+  status: "closed", // 'closed' | 'connecting' | 'open' | 'qr' | 'logged_out' | 'reconnecting'
   io: null,
   qrCode: null, // сырая строка QR
   qrDataUrl: null, // PNG в data URL
@@ -16,7 +18,7 @@ let client = {
 
 let disconnectFn = null;
 let reconnectTimer = null;
-let intentionalClose = false; // важно: чтобы не реконнектиться после deleteSession
+let intentionalClose = false; // чтобы не реконнектиться после deleteSession()
 
 function emitStatus(state) {
   client.status = state;
@@ -26,22 +28,21 @@ function emitStatus(state) {
     } catch (_) {}
     try {
       client.io.emit("whatsapp_status", state);
-    } catch (_) {} // back-compat для твоего фронта
+    } catch (_) {} // back-compat для фронта
   }
 }
 
 function emitQr(dataUrl, rawQr) {
-  if (client.io) {
-    try {
-      client.io.emit("wa_qr", { dataUrl });
-    } catch (_) {}
-    try {
-      client.io.emit("qr_image", dataUrl);
-    } catch (_) {}
-    try {
-      if (rawQr) client.io.emit("qr_code", rawQr);
-    } catch (_) {}
-  }
+  if (!client.io) return;
+  try {
+    client.io.emit("wa_qr", { dataUrl });
+  } catch (_) {}
+  try {
+    client.io.emit("qr_image", dataUrl);
+  } catch (_) {}
+  try {
+    if (rawQr) client.io.emit("qr_code", rawQr);
+  } catch (_) {}
 }
 
 function hasSavedSession() {
@@ -70,7 +71,7 @@ function clearReconnectTimer() {
 }
 
 async function connectToWhatsApp() {
-  // если есть предыдущая попытка — аккуратно закрываем
+  // аккуратно закрываем предыдущую попытку
   if (disconnectFn) {
     try {
       disconnectFn("forced_disconnect");
@@ -78,7 +79,7 @@ async function connectToWhatsApp() {
     disconnectFn = null;
   }
 
-  intentionalClose = false; // это новая попытка, не "намеренное закрытие"
+  intentionalClose = false; // новая попытка
   client.qrCode = null;
   client.qrDataUrl = null;
   emitStatus("connecting");
@@ -86,6 +87,15 @@ async function connectToWhatsApp() {
   if (!fs.existsSync(SESSION_FOLDER)) {
     fs.mkdirSync(SESSION_FOLDER, { recursive: true });
   }
+
+  // === ДИНАМИЧЕСКОЕ ПОДКЛЮЧЕНИЕ BAILEYS (ESM) ===
+  const baileys = await import("@whiskeysockets/baileys");
+  const {
+    default: makeWASocket,
+    useMultiFileAuthState,
+    DisconnectReason,
+    // fetchLatestBaileysVersion, // при необходимости можно использовать
+  } = baileys;
 
   const { state, saveCreds } = await useMultiFileAuthState(SESSION_FOLDER);
 
@@ -126,7 +136,7 @@ async function connectToWhatsApp() {
   client.sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    // 1) Пришёл новый QR — всегда эмитим и НЕ закрываем модалку
+    // 1) Пришёл новый QR
     if (qr) {
       client.qrCode = qr;
       client.qrDataUrl = null;
@@ -135,7 +145,7 @@ async function connectToWhatsApp() {
         const dataUrl = await QRCode.toDataURL(qr, { errorCorrectionLevel: "M", margin: 1, width: 256 });
         client.qrDataUrl = dataUrl;
         emitQr(dataUrl, qr);
-        console.log("[baileys] QR получен и сгенерирован на сервере (PNG).");
+        console.log("[baileys] QR получен и сгенерирован (PNG).");
       } catch (err) {
         console.warn("[baileys] Не удалось сгенерировать QR data URL, шлём строку:", err?.message || err);
         emitQr(null, qr);
@@ -160,26 +170,22 @@ async function connectToWhatsApp() {
       const code = new Boom(lastDisconnect?.error)?.output?.statusCode;
       const isLoggedOut = code === DisconnectReason.loggedOut || code === 401;
 
-      // Если закрыли намеренно — НЕ реконнектимся
       if (intentionalClose) {
-        intentionalClose = false;
-        // уже эмитнули 'closed' в disconnectFn
+        intentionalClose = false; // уже эмитнули 'closed' в disconnectFn
         return;
       }
 
-      // Разлогинили: даём фронту статус и стартуем новую регистрацию (новый QR придёт)
       if (isLoggedOut) {
         emitStatus("logged_out");
-        console.warn("[baileys] Выход из аккаунта (loggedOut). Будет новая регистрация.");
-        reconnectTimer = setTimeout(() => {
-          connectToWhatsApp().catch((err) => {
-            console.error("[baileys] Ошибка повторного подключения:", err?.message || err);
-          });
-        }, 1000);
+        console.warn("[baileys] Выход из аккаунта (loggedOut). Чистим сессию и ждём нового подключения.");
+        try {
+          fs.rmSync(SESSION_FOLDER, { recursive: true, force: true });
+        } catch (e) {
+          console.error("[baileys] Ошибка при удалении SESSION_FOLDER:", e.message);
+        }
         return;
       }
 
-      // Промежуточные ошибки — это НЕ повод закрывать модалку
       console.warn("[baileys] Соединение закрыто (временная ошибка). Переподключаемся. Код:", code);
       emitStatus("reconnecting");
       reconnectTimer = setTimeout(() => {
@@ -196,7 +202,7 @@ async function connectToWhatsApp() {
     }
   });
 
-  // Сообщения
+  // Лог входящих (опционально)
   if (process.env.WA_LOG_INCOMING === "1") {
     client.sock.ev.on("messages.upsert", async ({ messages }) => {
       try {
@@ -218,13 +224,13 @@ async function connectToWhatsApp() {
 }
 
 async function initializeWhatsApp(ioInstance) {
-  client.io = ioInstance; // только сохраняем io — без автоконнекта
+  client.io = ioInstance; // только сохраняем io — без автоподключения
 }
 
 async function deleteSession(showSwal = true) {
   try {
     if (disconnectFn) {
-      disconnectFn("forced_disconnect"); // intentionalClose=true, слушатели сняты, реконнект не включим
+      disconnectFn("forced_disconnect");
       disconnectFn = null;
     } else if (client.sock) {
       try {
