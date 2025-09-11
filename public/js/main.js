@@ -50,6 +50,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ====== DOM: Upload ======
   const fileArea = document.getElementById("file-upload-area");
+  const uploadHowtoLink = document.getElementById("upload-howto-link");
+  const uploadHowtoModal = document.getElementById("upload-howto-modal");
+  const uploadHowtoClose = uploadHowtoModal ? uploadHowtoModal.querySelector(".close-button") : null;
   const fileInput = document.getElementById("clients-file-input");
   const fileHint = document.getElementById("file-upload-hint");
   const fileNameDisplay = document.getElementById("fileNameDisplay");
@@ -146,6 +149,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = e.target;
     if (t && (t.dataset.close === "1" || t.classList.contains("howto-modal__backdrop"))) {
       closeHowto();
+    }
+  });
+
+  uploadHowtoLink?.addEventListener("click", () => {
+    uploadHowtoModal.style.display = "block";
+  });
+
+  uploadHowtoClose?.addEventListener("click", () => {
+    uploadHowtoModal.style.display = "none";
+  });
+
+  window.addEventListener("click", (e) => {
+    if (e.target === uploadHowtoModal) {
+      uploadHowtoModal.style.display = "none";
     }
   });
 
@@ -512,7 +529,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const s = c.status || "stopped";
       if (s === "running") {
         isCampaignActive = true;
-        overallStatusText && (overallStatusText.textContent = "В процессе");
+        overallStatusText && (overallStatusText.textContent = "В процессе. Сообщения отправляются каждые 30–160 сек.");
         overallStatusText && overallStatusText.classList.add("status-text-running");
         setDisabled(startBtn, true);
         setDisabled(stopBtn, false);

@@ -437,21 +437,8 @@ main {
 }
 #wa-howto-link:hover {
   cursor: pointer;
-  color: var(--color-primary-dark);
-}
-#wa-howto-link::after {
-  content: "";
-  position: absolute;
-  bottom: -1px;
-  left: 50%;
-  transform: translateX(-48%);
-  height: 1.5px;
-  background-color: var(--color-dark-gray);
-  width: 90%;
-}
-#wa-howto-link:hover::after {
-  cursor: pointer;
-  background-color: var(--color-primary-dark);
+  background-color: var(--color-primary);
+  color: var(--color-white);
 }
 
 .wa-status-row {
@@ -489,11 +476,18 @@ main {
   position: absolute;
   top: 8px;
   right: 10px;
+  font-weight: bold;
+  font-size: 28px;
+  color: var(--color-primary);
   border: 0;
   background: transparent;
-  font-size: 22px;
   line-height: 1;
   cursor: pointer;
+  transition: 0.3s;
+}
+
+.howto-modal__close:hover {
+  color: var(--color-danger);
 }
 
 .howto-grid {
@@ -521,6 +515,58 @@ main {
   cursor: pointer;
   font-weight: 600;
   margin: 6px 0 8px;
+}
+
+#upload-howto-link {
+  position: relative;
+  color: var(--color-primary);
+  transition: 0.3s;
+}
+#upload-howto-link:hover {
+  cursor: pointer;
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+/* Модалка */
+#upload-howto-modal.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* Контент именно для upload-модалки */
+.modal-content-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background-color: #fff;
+  margin: 6% auto;
+  padding: 20px 30px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 650px;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content-upload h2 {
+  margin-top: 0;
+}
+
+.modal-content-upload .close-button {
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.modal-content-upload .close-button:hover {
+  color: var(--color-danger);
 }
 
 @media (max-width: 640px) {
@@ -577,13 +623,12 @@ main {
 }
 
 .close-button {
-  position: absolute;
-  top: 15px;
-  right: 25px;
-  color: var(--color-dark-gray);
+  display: block;
+  color: var(--color-primary);
   font-size: 30px;
   font-weight: bold;
   cursor: pointer;
+  text-align: right;
   transition: color 0.3s ease;
 }
 
@@ -635,13 +680,13 @@ main {
 /* File Upload Section */
 .file-upload-area {
   border: 2px dashed var(--color-secondary);
-  border-radius: 15px; /* Закругленные */
+  border-radius: 15px;
+  margin: 20px 0;
   padding: 30px;
   padding-top: 24px;
   text-align: center;
   cursor: pointer;
   transition: background-color 0.3s ease, border-color 0.3s ease;
-  margin-top: 15px;
   background-color: rgba(255, 255, 255, 0.6);
   background-color: rgba(162, 155, 254, 0.1); /* Легкий эффект при наведении/перетаскивании */
 }
@@ -775,7 +820,7 @@ main {
 
 /* Radio Group */
 .option-group {
-  margin-top: 25px;
+  margin-top: 40px;
 }
 
 .option-group h3 {
