@@ -78,6 +78,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const stopBtn = document.getElementById("stop-btn");
   const overallStatusText = document.getElementById("overall-status-text");
 
+  const noticeBox = document.getElementById("campaign-notice");
+  const noticeText = document.getElementById("campaign-notice-text");
+
   const progressBarFills = Array.from(document.querySelectorAll(".progress-bar-fill"));
   const progressLabel = document.getElementById("progress-bar-label");
   const totalFooter = document.getElementById("total-count-footer");
@@ -102,6 +105,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // кампания
   let isCampaignActive = false;
   let campaignId = null; // ID из планировщика
+
+  let schedulerPauseActive = false;
+  const LS_SCHEDULER_PAUSE = "scheduler_pause_active"; // "1" | "0"
+  const LS_RISK_PAUSE_UNTIL = "risk_pause_until_ts"; // timestamp ms
 
   // прогресс
   const MSG_MAXLEN = 2000;
@@ -153,15 +160,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   uploadHowtoLink?.addEventListener("click", () => {
-    uploadHowtoModal.style.display = "block";
+    if (uploadHowtoModal) uploadHowtoModal.style.display = "block";
   });
 
   uploadHowtoClose?.addEventListener("click", () => {
-    uploadHowtoModal.style.display = "none";
+    if (uploadHowtoModal) uploadHowtoModal.style.display = "none";
   });
 
   window.addEventListener("click", (e) => {
-    if (e.target === uploadHowtoModal) {
+    if (e.target === uploadHowtoModal && uploadHowtoModal) {
       uploadHowtoModal.style.display = "none";
     }
   });
@@ -169,6 +176,21 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && howtoModal?.classList.contains("is-open")) closeHowto();
   });
+
+  function showNotice(html, kind = "info") {
+    if (!noticeBox || !noticeText) return;
+    noticeText.innerHTML = html;
+    noticeBox.classList.remove("info", "warn", "pause");
+    noticeBox.classList.add(kind);
+    noticeBox.hidden = false;
+    noticeBox.style.display = "block";
+  }
+  function hideNotice() {
+    if (!noticeBox || !noticeText) return;
+    noticeText.innerHTML = "";
+    noticeBox.hidden = true;
+    noticeBox.style.display = "none";
+  }
 
   // === Счётчик длины сообщения
   if (msgTemplate && msgCounter) {
@@ -200,6 +222,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     updateMsgCounter();
   }
+
+  msgTemplate?.addEventListener("input", enforceMessageLimit);
 
   const setIconConnected = (iconEl, connected) => {
     if (!iconEl) return;
@@ -344,12 +368,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const qh = tz ? isQuietHoursNow(tz) : false;
 
     if (isCampaignActive && qh) {
-      showAlert(
-        "Рассылка приостановлена с 21:00 до 10:00 в связи с тихими часами.<br>" +
-          "По истечению этого времени рассылка автоматически продолжится."
-      );
+      // показываем только если нет более приоритетных пауз
+      if (!riskPauseActive && !schedulerPauseActive) {
+        showNotice(
+          "Рассылка приостановлена с 21:00 до 10:00 (тихие часы).<br>После этого времени она продолжится автоматически.",
+          "warn"
+        );
+      }
     } else {
-      if (!riskPauseActive) hideAlert();
+      // скрываем, если нет других активных пауз
+      if (!riskPauseActive && !schedulerPauseActive) {
+        hideNotice();
+      }
     }
   }
   function startQuietHoursWatcher() {
@@ -387,25 +417,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateRiskPauseBanner() {
     if (!riskPauseActive) return;
-    if (riskPauseRemainingSec <= 0) {
-      riskPauseActive = false;
-      clearInterval(riskPauseTimer);
-      riskPauseTimer = null;
-      hideAlert();
+    const until = readRiskPauseUntil();
+    const remainMs = until - Date.now();
+    if (remainMs <= 0) {
+      stopRiskPause();
       updateQuietHoursBanner();
       return;
     }
+    const remainSec = Math.ceil(remainMs / 1000);
     const txt =
-      `Рассылка приостановлена на ${formatHMS(riskPauseRemainingSec)}.<br>` +
-      `Это снижает риск блокировки номера телефона WhatsApp сервисом.<br>` +
-      `По истечению этого времени рассылка автоматически продолжится.`;
-    showAlert(txt);
-    riskPauseRemainingSec -= 1;
+      `Риск-пауза на ${formatHMS(remainSec)}.<br>` +
+      `Это снижает риск блокировки номера. По окончании рассылка продолжится автоматически.`;
+    showNotice(txt, "pause");
   }
 
   function startRiskPause(seconds) {
     riskPauseActive = true;
-    riskPauseRemainingSec = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 24 * 3600;
+    const sec = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 24 * 3600;
+    const until = Date.now() + sec * 1000;
+    persistRiskPauseUntil(until);
     clearInterval(riskPauseTimer);
     riskPauseTimer = setInterval(updateRiskPauseBanner, 1000);
     updateRiskPauseBanner();
@@ -415,8 +445,43 @@ document.addEventListener("DOMContentLoaded", () => {
     riskPauseActive = false;
     clearInterval(riskPauseTimer);
     riskPauseTimer = null;
-    hideAlert();
+    clearRiskPausePersist();
+    if (!schedulerPauseActive) hideNotice();
     updateQuietHoursBanner();
+  }
+
+  function persistSchedulerPause(active) {
+    schedulerPauseActive = !!active;
+    try {
+      localStorage.setItem(LS_SCHEDULER_PAUSE, active ? "1" : "0");
+    } catch (_) {}
+  }
+  function readSchedulerPause() {
+    try {
+      return localStorage.getItem(LS_SCHEDULER_PAUSE) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function persistRiskPauseUntil(tsMs) {
+    try {
+      localStorage.setItem(LS_RISK_PAUSE_UNTIL, String(tsMs || ""));
+    } catch (_) {}
+  }
+  function readRiskPauseUntil() {
+    try {
+      const v = localStorage.getItem(LS_RISK_PAUSE_UNTIL);
+      const n = v ? Number(v) : 0;
+      return Number.isFinite(n) ? n : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+  function clearRiskPausePersist() {
+    try {
+      localStorage.removeItem(LS_RISK_PAUSE_UNTIL);
+    } catch (_) {}
   }
 
   // === SETTINGS: загрузка и автосейв ===
@@ -534,12 +599,14 @@ document.addEventListener("DOMContentLoaded", () => {
         setDisabled(startBtn, true);
         setDisabled(stopBtn, false);
         lockMain();
+        restoreNoticesFromStorage();
       } else if (String(s).startsWith("paused_")) {
         isCampaignActive = true;
         overallStatusText && (overallStatusText.textContent = "На паузе");
         setDisabled(startBtn, true);
         setDisabled(stopBtn, false);
         lockMain();
+        restoreNoticesFromStorage();
       } else if (s === "completed") {
         isCampaignActive = false;
         campaignId = null;
@@ -766,13 +833,17 @@ document.addEventListener("DOMContentLoaded", () => {
   socket.on("connect", () => {
     bootstrapCampaignState()
       .then(() => {
-        if (isCampaignActive) startQuietHoursWatcher();
-        else {
+        if (isCampaignActive) {
+          startQuietHoursWatcher();
+          // при активной кампании восстанавливаем заметки
+          restoreNoticesFromStorage();
+        } else {
           clearInterval(quietHoursTimer);
           hideAlert();
         }
       })
       .catch(() => {});
+
     loadSettings();
     socket.emit("request_whatsapp_status");
   });
@@ -814,8 +885,13 @@ document.addEventListener("DOMContentLoaded", () => {
     updateOverallReadyState();
   });
 
+  // socket.on("wa_status", ({ state }) => {
+  //   socket.emit("whatsapp_status", { state });
+  // });
+
   socket.on("wa_status", ({ state }) => {
-    socket.emit("whatsapp_status", { state });
+    updateUI(state);
+    updateOverallReadyState();
   });
 
   socket.on("wa_qr", ({ dataUrl }) => {
@@ -1094,6 +1170,8 @@ document.addEventListener("DOMContentLoaded", () => {
     setDisabled(deleteBtn, false);
 
     updateOverallReadyState();
+    hideNotice();
+    persistSchedulerPause(false);
   }
 
   // ====== СТАРТ/СТОП РАССЫЛКИ ======
@@ -1109,11 +1187,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     isCampaignActive = true;
     lockMain();
+    if (overallStatusText) {
+      overallStatusText.textContent = "В процессе. Сообщения отправляются каждые 30–160 сек.";
+    }
     setDisabled(startBtn, true);
     setDisabled(stopBtn, false);
     overallStatusText && overallStatusText.classList.remove("status-text-ready");
     overallStatusText && overallStatusText.classList.add("status-text-running");
-    if (overallStatusText) overallStatusText.textContent = "В процессе";
 
     setCounts({ total: 0, sent: 0, remaining: 0, failed: 0 });
     startQuietHoursWatcher();
@@ -1210,10 +1290,26 @@ document.addEventListener("DOMContentLoaded", () => {
   // ====== События кампании (сокеты) ======
   socket.on("campaign_started", ({ campaignId: id, timezone, total }) => {
     campaignId = id || campaignId;
+    isCampaignActive = true;
     if (typeof total === "number") {
       totalCount = total;
       setCounts({ total: totalCount, sent: 0, remaining: totalCount, failed: 0 });
     }
+    // статус
+    if (overallStatusText) {
+      overallStatusText.textContent = "В процессе. Сообщения отправляются каждые 30–160 сек.";
+      overallStatusText.classList.add("status-text-running");
+    }
+
+    setDisabled(startBtn, true);
+    setDisabled(stopBtn, false);
+    lockMain();
+
+    // NEW: следим за «тихими часами»
+    startQuietHoursWatcher();
+
+    // подтягиваем локально сохранённые notice (паузы от планировщика / риск-паузы)
+    restoreNoticesFromStorage();
   });
 
   socket.on("campaign_stopped", ({ campaignId: id }) => {
@@ -1227,6 +1323,8 @@ document.addEventListener("DOMContentLoaded", () => {
     overallStatusText && overallStatusText.classList.add("status-text-ready");
     if (overallStatusText) overallStatusText.textContent = "Остановлено";
     stopRiskPause();
+    persistSchedulerPause(false);
+    hideNotice();
     hideAlert();
     clearInterval(quietHoursTimer);
   });
@@ -1248,20 +1346,51 @@ document.addEventListener("DOMContentLoaded", () => {
   // Новое: пауза от микросервиса — только { pausing: true|false }
   socket.on("campaign_pausing", ({ pausing }) => {
     if (!isCampaignActive) {
+      // кампания уже не идёт — просто сбрасываем всё
       stopRiskPause();
-      hideAlert();
+      persistSchedulerPause(false);
+      hideNotice();
       return;
     }
+
     if (pausing === true) {
-      startRiskPause(); // 24 часа по умолчанию
+      // пауза от планировщика (например, тихие часы)
+      schedulerPauseActive = true;
+      persistSchedulerPause(true);
+      showNotice(
+        "Рассылка приостановлена планировщиком (например, тихие часы). " +
+          "Она автоматически продолжится, когда ограничения будут сняты.",
+        "warn"
+      );
     } else {
-      stopRiskPause();
+      // снятие паузы
+      schedulerPauseActive = false;
+      persistSchedulerPause(false);
+      hideNotice();
+      updateQuietHoursBanner();
     }
   });
 
   socket.on("update_progress", ({ total, sent, remaining }) => {
     setCounts({ total, sent, remaining, failed: failedCount });
   });
+
+  // ====== восстановление notice из localStorage ======
+  function restoreNoticesFromStorage() {
+    // Восстановить паузу от планировщика
+    schedulerPauseActive = readSchedulerPause();
+
+    // Восстановить риск-паузу
+    const until = readRiskPauseUntil();
+    if (until > Date.now()) {
+      // включаем локальный таймер, но показываем только если кампания активна
+      riskPauseActive = true;
+      clearInterval(riskPauseTimer);
+      riskPauseTimer = setInterval(updateRiskPauseBanner, 1000);
+      // если рассылка уже активна, сразу отрисуем
+      if (isCampaignActive) updateRiskPauseBanner();
+    }
+  }
 
   // ====== стартовое состояние ======
   updateUI("closed");
@@ -1272,4 +1401,5 @@ document.addEventListener("DOMContentLoaded", () => {
   markAddressingAndDelay();
   autoConnectIfHasSavedSession();
   refreshUploadSummary();
+  restoreNoticesFromStorage();
 });

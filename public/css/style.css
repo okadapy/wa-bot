@@ -1290,3 +1290,33 @@ body.campaign-active .fixed-bottom-bar {
   opacity: 1;
   pointer-events: auto;
 }
+
+.campaign-notice {
+  display: none;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff7e6; /* мягкий жёлтый */
+  border: 1px solid #ffe2a1;
+  color: #8a6800;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.campaign-notice i {
+  margin-right: 8px;
+}
+.campaign-notice.info {
+  background: #eaf5ff;
+  border-color: #b7defe;
+  color: #0b5ea8;
+}
+.campaign-notice.warn {
+  background: #fff7e6;
+  border-color: #ffe2a1;
+  color: #8a6800;
+}
+.campaign-notice.pause {
+  background: #f2f2f2;
+  border-color: #e0e0e0;
+  color: #444;
+}
