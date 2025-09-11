@@ -18,6 +18,21 @@ module.exports = (app) => {
   const Customer = db.Customer;
   const TariffPlan = db.TariffPlan;
 
+  /** Хелпер: слабая нормализация номера для сравнения */
+  function normPhoneLoose(p) {
+    if (!p) return "";
+    let s = String(p).trim();
+    s = s.replace(/[^\d+]/g, "");
+    if (s.startsWith("00")) s = "+" + s.slice(2);
+    if (!s.startsWith("+")) s = "+" + s.replace(/[^\d]/g, "");
+    return s.replace(/(?!^)\+/g, "");
+  }
+
+  /** Хелпер: оставить только цифры (для «жёсткого» сравнения) */
+  function stripDigits(p) {
+    return String(p || "").replace(/\D+/g, "");
+  }
+
   /** Рендер панели */
   exports.getDashboard = (req, res) => {
     const clientData = whatsappService.getWhatsAppClient();
@@ -470,7 +485,7 @@ module.exports = (app) => {
     }
   };
 
-  /** Запуск рассылки (через планировщик) — финальная версия */
+  /** Запуск рассылки (через планировщик) — финальная версия + BLACKLIST */
   exports.startSending = async (req, res) => {
     try {
       console.log("[startSending] invoked");
@@ -515,13 +530,14 @@ module.exports = (app) => {
     const tzUi = tzNumberToUiString(tzNum); // например, "+3" или "-5.5"
 
     try {
+      // 1) Собираем всех главных телефонов клиента
       const rows = await CustomerClientPhone.findAll({
         where: { customer_id: customerId, is_main: true },
         include: [{ model: CustomerClient, attributes: ["full_name"], where: { customer_id: customerId } }],
         order: [["id", "ASC"]],
       });
 
-      const clients = rows
+      let clients = rows
         .map((r) => ({
           name: r.CustomerClient && r.CustomerClient.full_name ? String(r.CustomerClient.full_name).trim() : "",
           phone: r.phone_number || "",
@@ -530,6 +546,46 @@ module.exports = (app) => {
 
       console.log(`[startSending] found clients with main phones: ${clients.length}`);
 
+      // 2) BLACKLIST: фильтруем прямо здесь перед отправкой в планировщик
+      try {
+        const [rowsBL] = await sequelize.query("SELECT phone FROM phone_blacklist");
+        const blDigits = new Set(rowsBL.map((r) => stripDigits(r.phone)));
+        const blLoose = new Set(rowsBL.map((r) => normPhoneLoose(r.phone)));
+
+        let skipped = 0;
+        const filtered = [];
+
+        for (const c of clients) {
+          // у нас в БД телефоны уже приведены к "79XXXXXXXXX" (только цифры, без '+')
+          const pDigits = stripDigits(c.phone);
+          // и «слабую» нормализацию с плюсом — для сравнения со строками из БЛ вида "+7...", "00...", "8..."
+          const pLoose = normPhoneLoose(c.phone.startsWith("+") ? c.phone : `+${c.phone}`);
+
+          const inBL = (pDigits && blDigits.has(pDigits)) || (pLoose && blLoose.has(pLoose));
+          if (inBL) {
+            skipped++;
+            continue;
+          }
+          filtered.push(c);
+        }
+
+        if (skipped > 0) {
+          console.log(`[startSending] blacklist filter applied: skipped ${skipped}, left ${filtered.length}`);
+        }
+        clients = filtered;
+      } catch (e) {
+        console.error("[startSending] blacklist check failed:", e?.message || e);
+        // продолжаем без фильтра, если таблицы нет или ошибка — по ТЗ валидации не требуем
+      }
+
+      if (!clients.length) {
+        console.warn("[startSending] 400 empty after blacklist");
+        return res
+          .status(400)
+          .json({ success: false, message: "Список получателей пуст (все номера попали в blacklist)." });
+      }
+
+      // 3) Лимиты (тариф/входные)
       let limitDaily = Number.isFinite(Number(daily_limit)) ? Number(daily_limit) : null;
       let limitMaxClients = Number.isFinite(Number(max_clients)) ? Number(max_clients) : null;
 
@@ -546,6 +602,7 @@ module.exports = (app) => {
         console.warn("Не удалось получить тариф пользователя:", e.message);
       }
 
+      // 4) Payload в планировщик — уже ОТФИЛЬТРОВАННЫЕ клиенты
       const payload = {
         customerId,
         timezone: tzNum, // <=== В МИКРОСЕРВИС УХОДИТ ЧИСЛО, например 3 или -5.5
@@ -555,13 +612,8 @@ module.exports = (app) => {
         max_clients: limitMaxClients ?? null,
       };
 
-      if (!clients.length) {
-        console.warn("[startSending] 400 empty clients");
-        return res.status(400).json({ success: false, message: "Список клиентов пуст или у них нет телефонов." });
-      }
-
       console.log("[scheduler] POST /wh/campaign payload:");
-      console.log(JSON.stringify(payload, null, 2));
+      console.log(JSON.stringify({ ...payload, clients: `<<${clients.length} recipients>>` }, null, 2));
 
       const { startCampaignOnScheduler } = require("../services/schedulerClient");
       let resp;
