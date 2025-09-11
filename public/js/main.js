@@ -41,6 +41,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const whatsappStatusValue = document.getElementById("whatsapp-status-value");
   const connectBtn = document.getElementById("connect-whatsapp-btn");
   const deleteBtn = document.getElementById("delete-session-btn");
+  const howtoLink = document.getElementById("wa-howto-link");
+  const howtoModal = document.getElementById("howto-modal");
   const qrModal = document.getElementById("qr-modal");
   const qrContainer = document.getElementById("qr-code-container");
   const qrTimerText = document.getElementById("qr-timer-text");
@@ -125,6 +127,31 @@ document.addEventListener("DOMContentLoaded", () => {
       el.disabled = !!v;
     }
   };
+
+  function openHowto() {
+    howtoModal?.classList.add("is-open");
+    howtoModal?.setAttribute("aria-hidden", "false");
+  }
+  function closeHowto() {
+    howtoModal?.classList.remove("is-open");
+    howtoModal?.setAttribute("aria-hidden", "true");
+  }
+
+  howtoLink?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openHowto();
+  });
+
+  howtoModal?.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t && (t.dataset.close === "1" || t.classList.contains("howto-modal__backdrop"))) {
+      closeHowto();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && howtoModal?.classList.contains("is-open")) closeHowto();
+  });
 
   // === Счётчик длины сообщения
   if (msgTemplate && msgCounter) {
@@ -842,14 +869,20 @@ document.addEventListener("DOMContentLoaded", () => {
         if (fileHint) fileHint.textContent = "Файл загружен. Можно загрузить следующий.";
         refreshUploadSummary();
         updateOverallReadyState();
+        if (fileInput) fileInput.value = "";
       })
       .catch((err) => {
         uploadCompleted = false;
         setIconConnected(uploadStatusIcon, false);
         swal("Ошибка", err.message || "Не удалось загрузить файл", "error");
         if (fileHint) fileHint.textContent = "Ошибка загрузки. Попробуйте снова.";
+        if (fileInput) fileInput.value = "";
       });
   }
+
+  fileInput?.addEventListener("click", () => {
+    fileInput.value = "";
+  });
 
   fileInput?.addEventListener("change", (e) => {
     const file = e.target.files?.[0];
@@ -910,6 +943,8 @@ document.addEventListener("DOMContentLoaded", () => {
       // UI: база пуста — скрываем кнопку удаления, сбрасываем индикаторы
       if (typeof uploadCompleted !== "undefined") uploadCompleted = false;
       setIconConnected && setIconConnected(uploadStatusIcon, false);
+
+      if (fileInput) fileInput.value = "";
 
       const labelTextEl = document.getElementById("fileUploadLabelText");
       if (labelTextEl) labelTextEl.textContent = "Выберите файл";

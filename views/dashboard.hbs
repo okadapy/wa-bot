@@ -41,7 +41,7 @@
       {{/if}}
       </span>
     </p>
-
+    <span id="wa-howto-link" class="wa-howto-link info-text">Как подключиться?</span>
     <div class="whatsapp-auth-buttons">
       
       <button
@@ -244,6 +244,58 @@
     </div>
   </div>
 </main>
+
+ <div id="howto-modal" class="howto-modal" aria-hidden="true">
+      <div class="howto-modal__backdrop" data-close="1"></div>
+      <div class="howto-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="howto-title">
+        <button class="howto-modal__close" type="button" aria-label="Закрыть" data-close="1">×</button>
+
+        <h3 id="howto-title">Как подключиться с телефона</h3>
+
+        <details open class="howto-accordion">
+          <summary>Общие шаги</summary>
+          <ol class="howto-list">
+            <li>Откройте WhatsApp на телефоне (обычный или Business).</li>
+            <li>Перейдите в раздел <b>Связанные устройства</b>.</li>
+            <li>Нажмите <b>Связать устройство</b> и разблокируй телефон (если потребуется).</li>
+            <li>Сканируйте QR-код, который появится в веб-приложении.</li>
+            <li><b>Важно:</b> Иногда WhatsApp требует отсканировать QR-код 2 раза подряд.</li>
+          </ol>
+        </details>
+
+        <div class="howto-grid">
+          <div class="howto-col">
+            <h4>iPhone</h4>
+            <ol class="howto-list">
+              <li>Откройте WhatsApp → <b>Настройки</b>.</li>
+              <li>Выберите <b>Связанные устройства</b>.</li>
+              <li>Нажмите <b>Связать устройство</b>.</li>
+              <li>Наведите камеру на QR-код в веб-приложении.</li>
+            </ol>
+          </div>
+          <div class="howto-col">
+            <h4>Android</h4>
+            <ol class="howto-list">
+              <li>Откройте WhatsApp → нажмите <b>⋮</b> (три точки).</li>
+              <li>Выберите <b>Связанные устройства</b>.</li>
+              <li>Нажмите <b>Связать устройство</b>.</li>
+              <li>Сканируйте QR-код в веб-приложении.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="howto-tips">
+          <h4>Если не сканируется</h4>
+          <ul>
+            <li>Увеличьте яркость экрана и поднесите телефон ближе.</li>
+            <li>Проверьте интернет на телефоне (Wi-Fi/мобильные данные).</li>
+            <li>Убедитесь, что вошли в нужный номер WhatsApp.</li>
+            <li>Если QR исчез — он обновляется. Нажмите «Подключиться» снова.</li>
+            <li>Если видите «Требуется вход» — нажмите <b>Удалить сессию</b> и повторите.</li>
+          </ul>
+    </div>
+  </div>
+</div>
 
 <div id="qr-modal" class="modal">
       <div class="modal-content">

@@ -431,6 +431,108 @@ main {
   min-width: 180px;
 }
 
+#wa-howto-link {
+  position: relative;
+  transition: 0.3s;
+}
+#wa-howto-link:hover {
+  cursor: pointer;
+  color: var(--color-primary-dark);
+}
+#wa-howto-link::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-48%);
+  height: 1.5px;
+  background-color: var(--color-dark-gray);
+  width: 90%;
+}
+#wa-howto-link:hover::after {
+  cursor: pointer;
+  background-color: var(--color-primary-dark);
+}
+
+.wa-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.howto-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 1000;
+}
+.howto-modal.is-open {
+  display: block;
+}
+.howto-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+.howto-modal__dialog {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+  margin: 40px auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 38px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+.howto-modal__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.howto-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 8px;
+}
+.howto-col h4 {
+  margin: 8px 0;
+  font-size: 15px;
+}
+.howto-list {
+  margin: 0;
+  padding-left: 18px;
+}
+.howto-tips {
+  margin-top: 12px;
+}
+.howto-tips h4 {
+  margin: 8px 0;
+  font-size: 15px;
+}
+.howto-accordion summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin: 6px 0 8px;
+}
+
+@media (max-width: 640px) {
+  .howto-modal__dialog {
+    margin: 12px;
+    max-height: calc(100vh - 24px);
+  }
+  .howto-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* QR Modal */
 .modal {
   display: none;

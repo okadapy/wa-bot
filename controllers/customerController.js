@@ -18,9 +18,6 @@ module.exports = (app) => {
   const Customer = db.Customer;
   const TariffPlan = db.TariffPlan;
 
-  let formattedClientsData = [];
-  let isSending = false;
-
   /** Рендер панели */
   exports.getDashboard = (req, res) => {
     const clientData = whatsappService.getWhatsAppClient();
@@ -43,7 +40,7 @@ module.exports = (app) => {
     });
   };
 
-  /** Парсер имени под разные варианты обращения */
+  /** Парсер имени под разные варианты обращения (оставлено без изменений — используется в другой логике) */
   function parseClientName(fullName, addressingOption) {
     if (!fullName) return "";
     const trimmed = String(fullName).trim();
@@ -117,6 +114,76 @@ module.exports = (app) => {
     return (num >= 0 ? "+" : "") + str;
   }
 
+  /** ====== Константы и утилиты парсинга Excel ====== */
+
+  // Имена/токены, означающие «нет персонализации»
+  const BAD_NAME_TOKENS = [
+    "без имени",
+    "нет имени",
+    "неизвестно",
+    "unknown",
+    "n/a",
+    "na",
+    "—",
+    "-",
+    "нет данных",
+    "без названия",
+    "no name",
+    "не указано",
+    "пусто",
+  ];
+
+  // Похоже на юрлицо/компанию (для эвристики)
+  const COMPANY_TOKENS = [
+    "ооо",
+    "зао",
+    "оао",
+    "ип",
+    "ooo",
+    "ao",
+    "ltd",
+    "llc",
+    "gmbh",
+    "inc",
+    "corp",
+    "компания",
+    "фирма",
+  ];
+
+  // Разделители для нескольких телефонов в одной ячейке (не режем по пробелам/дефисам/точкам)
+  const SPLIT_RE = /[,;|\/\\\n\t]+/;
+
+  // Синонимы заголовков
+  const NAME_HEADERS = ["Имя", "ФИО", "Клиент", "ФИО Клиента", "Контакт", "Наименование"];
+  const PHONE_HEADERS = ["Телефон", "Номер телефона", "Мобильный", "Номер", "тел", "Phone", "Mobile"];
+
+  const looksLikeBadName = (name) => {
+    const s = String(name || "")
+      .trim()
+      .toLowerCase();
+    if (!s) return true;
+    return BAD_NAME_TOKENS.some((tok) => s === tok || s.includes(` ${tok} `));
+  };
+
+  const looksLikeCompany = (name) => {
+    const s = String(name || "")
+      .trim()
+      .toLowerCase();
+    return COMPANY_TOKENS.some((tok) => new RegExp(`(^|\\s)${tok}(\\.|\\s|$)`, "i").test(s));
+  };
+
+  // Нормализация телефона РФ (7/8)
+  const normalizeRuPhone = (raw) => {
+    const digits = String(raw || "").replace(/\D+/g, "");
+    if (!digits) return null;
+    let d = digits;
+    if (d.length === 10) d = "7" + d; // 9xx... -> 79xx...
+    else if (d.length === 11 && d.startsWith("8")) d = "7" + d.slice(1); // 8xxxxxxxxxx -> 7xxxxxxxxxx
+    if (d.length !== 11 || !d.startsWith("7")) return null;
+    return d;
+    // Плюс не нужен — Baileys передаёт без '+'
+  };
+
   /** Загрузка Excel с клиентами (+ сохранение исходника в ./client_data) */
   exports.uploadClients = async (req, res) => {
     const customerId = req.session ? req.session.customerId : null;
@@ -134,7 +201,6 @@ module.exports = (app) => {
     }
 
     const clientFile = req.files.clientFile || req.files.clientsFile || req.files.file || req.files.upload;
-
     if (!clientFile) {
       console.error("uploadClients: не найдено поле файла (ожидалось clientFile)");
       return res.status(400).json({ success: false, message: "Не найден файл. Поле должно называться 'clientFile'." });
@@ -158,20 +224,15 @@ module.exports = (app) => {
       });
     }
 
-    const body = req.body || {};
-    const addressingOption = (body.addressingOption || "").trim() || "auto";
-
-    // 1) Сохраняем исходный файл в ./client_data/YYYYMMDD_HHMMSS_originalName.ext
+    // сохраняем исходник (best-effort)
     try {
       const baseDir = path.resolve(process.cwd(), "client_data");
       if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true });
-
       const sanitizeName = (name) =>
         String(name || "upload.xlsx")
           .replace(/[/\\?%*:|"<>]/g, "_")
           .replace(/\s+/g, " ")
           .trim();
-
       const safeName = sanitizeName(clientFile.name);
       const dt = new Date();
       const pad = (n) => String(n).padStart(2, "0");
@@ -180,89 +241,122 @@ module.exports = (app) => {
       )}${pad(dt.getSeconds())}`;
       const fileName = `${stamp}_${safeName}`;
       const destPath = path.join(baseDir, fileName);
-
       fs.writeFileSync(destPath, clientFile.data);
       console.log(`[uploadClients] исходный файл сохранён: ${destPath}`);
     } catch (e) {
       console.warn("[uploadClients] не удалось сохранить исходный файл в ./client_data:", e?.message || e);
     }
 
-    // 2) Разбор Excel и запись в БД
-    let transaction;
+    // ==== ПАРСЕР EXCEL ====
+    let parsedRecords = [];
+
     try {
       const workbook = xlsx.read(clientFile.data, { type: "buffer" });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
 
-      const columnMapping = {
-        name: ["Имя", "ФИО", "Клиент", "ФИО Клиента", "Контакт", "Наименование"],
-        phone: ["Телефон", "Номер телефона", "Мобильный", "Номер", "тел"],
-      };
-
-      const excelHeaders = xlsx.utils.sheet_to_json(worksheet, { header: 1 })[0];
-      if (!excelHeaders || excelHeaders.length === 0) {
+      const headerRow = xlsx.utils.sheet_to_json(worksheet, { header: 1 })?.[0];
+      if (!headerRow || headerRow.length === 0) {
         return res.status(400).json({ success: false, message: "Пустой файл или неверные заголовки." });
       }
 
-      const foundColumns = {};
-      for (const logicalField in columnMapping) {
-        const possibleNames = columnMapping[logicalField];
-        const regexPattern = possibleNames.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-        const regex = new RegExp(regexPattern, "i");
-        for (const header of excelHeaders) {
-          if (!header) continue;
-          const trimmedHeader = String(header).trim();
-          if (regex.test(trimmedHeader)) {
-            foundColumns[logicalField] = trimmedHeader;
-            break;
+      // Определяем первую подходящую колонку имени
+      let nameCol = null;
+      for (const h of headerRow) {
+        if (!h) continue;
+        const label = String(h).trim();
+        if (NAME_HEADERS.some((n) => new RegExp(`^${n}$`, "i").test(label))) {
+          nameCol = label;
+          break;
+        }
+      }
+
+      // Собираем все колоноки телефонов
+      const phoneCols = [];
+      for (const h of headerRow) {
+        if (!h) continue;
+        const label = String(h).trim();
+        const isPhoneSyn = PHONE_HEADERS.some((n) => new RegExp(n, "i").test(label));
+        const genericPhone = /тел|phone|моб|номер/i.test(label);
+        if (isPhoneSyn || genericPhone) {
+          phoneCols.push(label);
+        }
+      }
+
+      if (!nameCol || phoneCols.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Нужны колонки 'Имя/ФИО' и хотя бы одна колонка с телефоном (Телефон/Мобильный/Номер).",
+        });
+      }
+
+      const rows = xlsx.utils.sheet_to_json(worksheet);
+      const globalSeen = new Set(); // номера, уже встреченные у предыдущих клиентов
+
+      for (const row of rows) {
+        const rawName = row[nameCol];
+        const rawNameStr = String(rawName ?? "").trim();
+
+        // собираем все номера из всех телефонных колонок
+        let numbers = [];
+        for (const col of phoneCols) {
+          const val = row[col];
+          if (val == null) continue;
+          const tokens = String(val)
+            .split(SPLIT_RE)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          for (const t of tokens) {
+            const n = normalizeRuPhone(t);
+            if (n) numbers.push(n);
           }
         }
+
+        // удаляем локальные дубли по этому клиенту
+        numbers = [...new Set(numbers)];
+        if (numbers.length === 0) continue;
+
+        // применяем глобальную дедупликацию: если номер уже был у другого клиента — игнорируем
+        const accepted = numbers.filter((n) => !globalSeen.has(n));
+        accepted.forEach((n) => globalSeen.add(n));
+        if (accepted.length === 0) continue;
+
+        // логируем нестандартные имена (для инфы)
+        if (looksLikeBadName(rawNameStr) || looksLikeCompany(rawNameStr)) {
+          console.log(
+            `[uploadClients] имя выглядит неперсонализируемым/компания: "${rawNameStr}" — отправка будет без персонализации.`
+          );
+        }
+
+        // раскладываем «клиент — телефон» в плоский список
+        for (const ph of accepted) {
+          parsedRecords.push({ name: rawNameStr, phone: ph });
+        }
       }
 
-      if (!foundColumns.name || !foundColumns.phone) {
+      if (parsedRecords.length === 0) {
         return res.status(400).json({
           success: false,
-          message: "Нужны колонки 'Имя/ФИО' и 'Телефон' (можно синонимы).",
+          message: "Нет валидных записей после обработки. Проверьте номера телефонов.",
         });
       }
-
-      const rawClients = xlsx.utils.sheet_to_json(worksheet);
-
-      formattedClientsData = [];
-      rawClients.forEach((row) => {
-        const customerName = row[foundColumns.name];
-        const customerPhone = row[foundColumns.phone];
-
-        if (!customerPhone) {
-          console.log(`Пропуск записи из-за отсутствия телефона: ${customerName}`);
-          return;
-        }
-
-        const cleanedPhone = String(customerPhone).replace(/[^0-9]/g, "");
-        if (!cleanedPhone) {
-          console.log(`Пропуск из-за невалидного номера: ${customerName} (Исходный: ${customerPhone})`);
-          return;
-        }
-
-        const formattedName = parseClientName(customerName, addressingOption);
-        formattedClientsData.push({ name: formattedName, phone: cleanedPhone });
+    } catch (err) {
+      console.error("uploadClients: ошибка парсинга Excel:", err);
+      return res.status(500).json({
+        success: false,
+        message: "Ошибка чтения Excel. Проверьте формат и заголовки.",
       });
+    }
 
-      if (formattedClientsData.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Нет валидных записей после обработки.",
-        });
-      }
-
+    // ==== Запись в БД ====
+    let transaction;
+    try {
       transaction = await sequelize.transaction();
 
       let clientsAddedCount = 0;
       let clientsProcessedCount = 0;
 
-      for (const clientData of formattedClientsData) {
-        const { name, phone } = clientData;
-
+      for (const { name, phone } of parsedRecords) {
         try {
           const [client] = await CustomerClient.findOrCreate({
             where: { customer_id: customerId, full_name: name },
@@ -278,9 +372,9 @@ module.exports = (app) => {
 
           if (phoneCreated) {
             clientsAddedCount++;
-            console.log(`Добавлена запись: "${name}", Телефон "${phone}"`);
+            // console.log(`Добавлена запись: "${name}", Телефон "${phone}"`);
           } else {
-            console.log(`Дубликат: "${name}" — "${phone}" (пропущено)`);
+            // console.log(`Дубликат: "${name}" — "${phone}" (пропущено)`);
           }
           clientsProcessedCount++;
         } catch (dbError) {
@@ -295,18 +389,18 @@ module.exports = (app) => {
 
       await transaction.commit();
 
-      res.json({
+      return res.json({
         success: true,
-        message: `База клиентов обновлена. В файле: ${formattedClientsData.length}. Новых добавлено: ${clientsAddedCount}.`,
-        totalClients: formattedClientsData.length,
+        message: `База клиентов обновлена. В файле обработано: ${parsedRecords.length}. Новых добавлено: ${clientsAddedCount}.`,
+        totalClients: parsedRecords.length,
         clientsAdded: clientsAddedCount,
       });
     } catch (error) {
       if (transaction) await transaction.rollback();
-      console.error("uploadClients: ошибка обработки/сохранения файла:", error);
+      console.error("uploadClients: ошибка записи в БД:", error);
       return res.status(500).json({
         success: false,
-        message: "Ошибка при обработке файла или записи в базу. Проверьте формат Excel.",
+        message: "Ошибка при записи в базу. Повторите попытку позже.",
       });
     }
   };
@@ -353,9 +447,7 @@ module.exports = (app) => {
         return res.status(401).json({ success: false, message: "Не авторизован" });
       }
 
-      // На всякий случай — запретим, если кампания идёт
-      // (если у тебя есть CampaignStateStore — можно проверить и вернуть 409)
-      // Сейчас не блокируем, но логируем:
+      // На всякий случай — можно было бы запретить, если кампания идёт (проверка CampaignStateStore)
       console.log(`[purgeClients] requested by customer ${customerId}`);
 
       await sequelize.transaction(async (t) => {
@@ -407,7 +499,6 @@ module.exports = (app) => {
     }
 
     // === Новая логика таймзоны ===
-    // Преобразуем в ЧИСЛО часов для микросервиса, и отдельную строку для UI/логов/хранилища.
     const tzNum = toTzNumber(timezone);
     if (tzNum == null || !Number.isFinite(tzNum)) {
       console.warn("[startSending] 400 bad timezone format:", timezone);
@@ -490,14 +581,6 @@ module.exports = (app) => {
           message: "Планировщик недоступен или вернул ошибку.",
         });
       }
-      /*
-      {
-
-           "campaign_id": 1,
-
-           "message": "Campaign created successfully"
-       }
-      */
 
       const campaignId = resp?.campaignId || null;
 
