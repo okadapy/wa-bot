@@ -228,17 +228,25 @@ module.exports = (app) => {
     try {
       const baseDir = path.resolve(process.cwd(), "client_data");
       if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true });
+
+      // получаем оригинальное имя в UTF-8
+      let origName = clientFile.name;
+      try {
+        origName = Buffer.from(clientFile.name, "latin1").toString("utf8");
+      } catch (_) {}
       const sanitizeName = (name) =>
         String(name || "upload.xlsx")
           .replace(/[/\\?%*:|"<>]/g, "_")
           .replace(/\s+/g, " ")
+          .replace(/_+/g, "_")
           .trim();
-      const safeName = sanitizeName(clientFile.name);
+
+      const safeName = sanitizeName(origName);
       const dt = new Date();
       const pad = (n) => String(n).padStart(2, "0");
-      const stamp = `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}_${pad(dt.getHours())}${pad(
+      const stamp = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}_${pad(dt.getHours())}-${pad(
         dt.getMinutes()
-      )}${pad(dt.getSeconds())}`;
+      )}-${pad(dt.getSeconds())}`;
       const fileName = `${stamp}_${safeName}`;
       const destPath = path.join(baseDir, fileName);
       fs.writeFileSync(destPath, clientFile.data);
