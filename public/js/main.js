@@ -1344,28 +1344,24 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Новое: пауза от микросервиса — только { pausing: true|false }
-  socket.on("campaign_pausing", ({ pausing }) => {
-    if (!isCampaignActive) {
-      // кампания уже не идёт — просто сбрасываем всё
-      stopRiskPause();
-      persistSchedulerPause(false);
-      hideNotice();
-      return;
-    }
+  socket.on("campaign_pausing", ({ pausing, campaignId: id }) => {
+    if (id && campaignId && id !== campaignId) return;
+    // помечаем паузу локально (переживет перезагрузку)
+    persistSchedulerPause(!!pausing);
+    schedulerPauseActive = !!pausing;
 
     if (pausing === true) {
-      // пауза от планировщика (например, тихие часы)
-      schedulerPauseActive = true;
-      persistSchedulerPause(true);
+      // Кампания продолжает существовать, просто временная пауза.
+      // НИЧЕГО не трогаем в плане isCampaignActive/lockMain().
       showNotice(
         "Рассылка приостановлена планировщиком (например, тихие часы). " +
           "Она автоматически продолжится, когда ограничения будут сняты.",
         "warn"
       );
+      // На всякий случай не прячем другие предупреждения
+      // и не трогаем riskPause.
     } else {
-      // снятие паузы
-      schedulerPauseActive = false;
-      persistSchedulerPause(false);
+      // Снятие паузы — просто убираем баннер и даём UI самому догнаться
       hideNotice();
       updateQuietHoursBanner();
     }
@@ -1379,6 +1375,14 @@ document.addEventListener("DOMContentLoaded", () => {
   function restoreNoticesFromStorage() {
     // Восстановить паузу от планировщика
     schedulerPauseActive = readSchedulerPause();
+
+    if (schedulerPauseActive && isCampaignActive) {
+      showNotice(
+        "Рассылка приостановлена планировщиком (например, тихие часы). " +
+          "Она автоматически продолжится, когда ограничения будут сняты.",
+        "warn"
+      );
+    }
 
     // Восстановить риск-паузу
     const until = readRiskPauseUntil();

@@ -63,18 +63,18 @@ exports.schedulerSendWebhook = async (req, res) => {
       try {
         io && io.emit("campaign_pausing", { pausing: true, campaignId });
       } catch (_) {}
-      // Ничего не отправляем — просто подтверждаем
-      return res.status(202).json({ success: true, pausing: true });
     }
     if (pausingFlag === false) {
       try {
         io && io.emit("campaign_pausing", { pausing: false, campaignId });
       } catch (_) {}
-      // продолжаем обработку — могло прийти и задание
     }
 
     // ======= Обычное задание на отправку =======
     if (!phoneNumberRaw || !msgText) {
+      if (pausingFlag === true || pausingFlag === false) {
+        return res.status(202).json({ success: true, pausing: pausingFlag, no_task: true });
+      }
       return res.status(422).json({ success: false, message: "phoneNumber и msgText обязательны" });
     }
 
