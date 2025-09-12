@@ -122,3 +122,14 @@ CREATE TABLE IF NOT EXISTS `campaign_reports` (
     CONSTRAINT `fk_cr_campaign` FOREIGN KEY (`campaign_id`) REFERENCES `campaign_timezones` (`campaign_id`),
     CONSTRAINT `fk_cr_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`)
     ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- ===============================
+-- phone_blacklist
+-- ===============================
+CREATE TABLE IF NOT EXISTS phone_blacklist (
+                                               id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                                               phone VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_phone_blacklist_phone (phone)
+    );

@@ -20,9 +20,9 @@ const (
 	maxCooldown        = 160 * time.Second
 	allowedStartHour   = 10
 	allowedEndHour     = 21
-	dailyResetPeriod   = 24 * time.Hour
+	dailyResetPeriod   = 1 * time.Minute
 	checkInterval      = 5 * time.Second
-	minDailyMessages   = 25
+	minDailyMessages   = 1
 	maxDailyMessages   = 100
 	successStatusRange = 200
 	conflictStatus     = 409
@@ -93,6 +93,10 @@ func (s *Scheduler) Start(c *Campaign) {
 		return
 	}
 
+	// TODO: Стереть в проде нахуй! Тут только для тестов!!!
+	c.MaxDaily = 1
+	c.MaxMsg = 2
+
 	ctx, cancel := context.WithCancel(context.Background())
 	worker := &Worker{
 		currentID: 0,
@@ -160,7 +164,7 @@ func (w *Worker) Run() {
 
 			if w.isCompleted() {
 				w.logger.Printf("info: campaign %d completed. total messages sent: %d",
-					w.campaign.ID, w.sentCount)
+					w.campaign.ID, w.sentCount+1)
 				w.setCampaignStatus(COMPLETED)
 				return
 			}
@@ -173,9 +177,10 @@ func (w *Worker) Stop() {
 }
 
 func (w *Worker) processBatch() {
-	if !w.isWithinAllowedTime() {
-		return
-	}
+	// TODO: Раскомментить! Тут только для моих полуночных тестов!
+	//if !w.isWithinAllowedTime() {
+	//	return
+	//}
 
 	w.checkDailyReset()
 
@@ -238,7 +243,7 @@ func (w *Worker) hasReachedLimits() bool {
 
 	// Check daily limit
 	maxDaily := clamp(w.campaign.MaxDaily, minDailyMessages, maxDailyMessages)
-	return w.sentCount >= maxDaily
+	return w.sentCount >= maxDaily || (w.campaign.MaxDaily == 1 && w.campaign.MaxMsg > 1)
 }
 
 func clamp(value, min, max int) int {
@@ -277,6 +282,8 @@ func (w *Worker) sendMessage() error {
 		},
 		Pausing: w.hasReachedLimits(),
 	}
+
+	w.logger.Printf("info: sending message for campaign %d, pausing state? %t", w.campaign.ID, request.Pausing)
 
 	body, err := json.Marshal(request)
 	if err != nil {
