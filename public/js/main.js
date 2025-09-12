@@ -1345,7 +1345,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Новое: пауза от микросервиса — только { pausing: true|false }
   socket.on("campaign_pausing", ({ pausing, campaignId: id }) => {
-    if (id && campaignId && id !== campaignId) return;
+    if (!isCampaignActive || !campaignId || (id && id !== campaignId)) return;
     // помечаем паузу локально (переживет перезагрузку)
     persistSchedulerPause(!!pausing);
     schedulerPauseActive = !!pausing;
