@@ -1320,3 +1320,37 @@ body.campaign-active .fixed-bottom-bar {
   border-color: #e0e0e0;
   color: #444;
 }
+
+.is-disabled,
+button:disabled,
+[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  filter: saturate(0.2);
+}
+
+.btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+  filter: saturate(0.7);
+}
+
+.btn-primary:hover:not(:disabled):not(.is-disabled) {
+  background-color: var(--color-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px var(--color-shadow-medium);
+}
+
+.btn-stop:hover:not(:disabled):not(.is-disabled) {
+  background-color: var(--color-danger-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px var(--color-shadow-medium);
+}
+
+.btn-start:hover:not(:disabled):not(.is-disabled) {
+  background-color: var(--color-success-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px var(--color-shadow-medium);
+}

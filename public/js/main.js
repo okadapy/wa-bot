@@ -130,11 +130,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
   const setDisabled = (el, v) => {
-    if (!el) return;
+    const apply = (node, disabled) => {
+      if (!node) return;
+      // если это кнопка/инпут — используем стандартный disabled
+      if ("disabled" in node) {
+        node.disabled = !!disabled;
+      }
+      // универсально для любых элементов
+      if (disabled) {
+        node.classList.add("is-disabled");
+        node.setAttribute("aria-disabled", "true");
+        node.style.pointerEvents = "none";
+      } else {
+        node.classList.remove("is-disabled");
+        node.removeAttribute("aria-disabled");
+        node.style.pointerEvents = "";
+      }
+    };
+
     if (Array.isArray(el)) {
-      el.forEach((n) => n && (n.disabled = !!v));
+      el.forEach((n) => apply(n, v));
     } else {
-      el.disabled = !!v;
+      apply(el, v);
     }
   };
 
