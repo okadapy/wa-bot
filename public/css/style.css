@@ -52,7 +52,7 @@ body {
   background: -webkit-linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
 
   filter: progid: DXImageTransform.Microsoft.gradient( startColorstr="#F6CFBE", endColorstr="#B9DCF2", GradientType=1 ); */
-  background: linear-gradient(rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.93)),
+  background: linear-gradient(rgba(255, 255, 255, 0.915), rgba(255, 255, 255, 0.915)),
     /* полупрозрачный слой */ url("/images/main-bg.jpg");
   min-height: 100vh;
   display: flex;
