@@ -59,22 +59,24 @@ exports.schedulerSendWebhook = async (req, res) => {
     }
 
     // ======= Сигнал паузы =======
-    if (pausingFlag === true) {
+    const hasTaskPayload = !!(phoneNumberRaw && msgText);
+
+    if (pausingFlag === true || pausingFlag === false) {
+      console.log(`[webhook] pausing=${pausingFlag} for campaign ${campaignId}, hasTask=${hasTaskPayload}`);
       try {
-        io && io.emit("campaign_pausing", { pausing: true, campaignId });
+        io && io.emit("campaign_pausing", { pausing: !!pausingFlag, campaignId });
       } catch (_) {}
-    }
-    if (pausingFlag === false) {
-      try {
-        io && io.emit("campaign_pausing", { pausing: false, campaignId });
-      } catch (_) {}
+
+      // Если это чисто "сигнал паузы" без задания — подтверждаем и выходим
+      if (!hasTaskPayload) {
+        return res.status(202).json({ success: true, pausing: !!pausingFlag, accepted: true });
+      }
+      // Иначе — падаем ниже и обрабатываем отправку сообщения как обычно
     }
 
-    // ======= Обычное задание на отправку =======
-    if (!phoneNumberRaw || !msgText) {
-      if (pausingFlag === true || pausingFlag === false) {
-        return res.status(202).json({ success: true, pausing: pausingFlag, no_task: true });
-      }
+    // ======= Обычное задание на отправку (или совместно с pausing) =======
+    if (!hasTaskPayload) {
+      // сюда дойдём только если pausing не был передан; для чистоты — 422
       return res.status(422).json({ success: false, message: "phoneNumber и msgText обязательны" });
     }
 
