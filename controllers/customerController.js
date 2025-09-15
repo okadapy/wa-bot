@@ -862,6 +862,18 @@ module.exports = (app) => {
       const wa = require("../services/whatsappService").getWhatsAppClient?.() || {};
       const whatsapp = { state: wa.status || "closed" };
 
+      // --- единожды подтягиваем max_clients из тарифа
+      let maxClients = null;
+      try {
+        const customer = await Customer.findByPk(customerId);
+        if (customer?.tariff_plan_id && TariffPlan) {
+          const tariff = await TariffPlan.findByPk(customer.tariff_plan_id);
+          if (tariff) maxClients = Number(tariff.max_clients) || null;
+        }
+      } catch (e) {
+        console.warn("[getCampaignState] tariff lookup failed:", e.message);
+      }
+
       const campaign = snap || {
         status: "stopped",
         campaignId: null,
@@ -874,7 +886,7 @@ module.exports = (app) => {
         updatedAt: new Date().toISOString(),
       };
 
-      return res.json({ success: true, campaign, whatsapp });
+      return res.json({ success: true, campaign, whatsapp, max_clients: maxClients });
     } catch (e) {
       console.error("[getCampaignState] error:", e);
       return res.status(500).json({ success: false, message: "Не удалось получить состояние кампании" });

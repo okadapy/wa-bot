@@ -155,6 +155,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // ====== TARIFF / LOCAL USAGE COUNTER (обфускация ключа) ======
+  let __mx__tariffMax = null; // лимит тарифа (max_clients)
+  let __mx__limitsLoading = true; // идёт загрузка лимитов
+  const __mx__prefix = "__sx"; // неочевидный префикс
+
+  function __mx__key() {
+    const host = (location.hostname || "h").slice(0, 6).replace(/[^a-z0-9]/gi, "h");
+    return `${__mx__prefix}:${host}:mx`; // без customer_id
+  }
+  function __mx__readUsed() {
+    try {
+      const raw = localStorage.getItem(__mx__key());
+      const n = raw == null ? 0 : Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+  function __mx__setUsed(n) {
+    try {
+      localStorage.setItem(__mx__key(), String(Math.max(0, Math.floor(Number(n) || 0))));
+    } catch (_) {}
+  }
+  function __mx__incUsed(delta = 1) {
+    const v = __mx__readUsed() + (Number(delta) || 0);
+    __mx__setUsed(v);
+    return v;
+  }
+
   function openHowto() {
     howtoModal?.classList.add("is-open");
     howtoModal?.setAttribute("aria-hidden", "false");
@@ -235,6 +264,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e && typeof e.preventDefault === "function") e.preventDefault();
       if (window.Swal) {
         Swal.fire("Слишком длинно", `Максимум ${MSG_MAXLEN} символов. Лишнее было обрезано.`, "warning");
+      } else {
+        alert(`Слишком длинно. Максимум ${MSG_MAXLEN} символов. Лишнее было обрезано.`);
       }
     }
     updateMsgCounter();
@@ -331,7 +362,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const addrReady = !!addressing;
     const countReady = !!countVal;
     const uploadReady = !!uploadCompleted;
-    return waReady && tzReady && msgReady && addrReady && countReady && uploadReady;
+    const limitsReady = !__mx__limitsLoading;
+    return waReady && tzReady && msgReady && addrReady && countReady && uploadReady && limitsReady;
   }
 
   function updateOverallReadyState() {
@@ -520,6 +552,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const el = msgCountRadios.find((r) => Number(r.value) === Number(s.daily_limit_pref));
       if (el) el.checked = true;
     }
+    if (typeof s.max_clients_pref === "number" || s.max_clients_pref === null) {
+      __mx__tariffMax = Number.isFinite(Number(s.max_clients_pref)) ? Number(s.max_clients_pref) : null;
+    }
+    __mx__limitsLoading = false;
     updateOverallReadyState();
     updateQuietHoursBanner();
   }
@@ -594,6 +630,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const r = await fetch("/customer/campaign/state", { cache: "no-store" });
       const d = await r.json().catch(() => null);
       if (!r.ok || !d?.success) return;
+
+      __mx__tariffMax = Number.isFinite(Number(d.max_clients)) ? Number(d.max_clients) : null;
+      __mx__limitsLoading = false;
+      updateOverallReadyState();
 
       updateUI(d.whatsapp?.state || "closed");
 
@@ -848,6 +888,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ====== Socket.IO: WhatsApp ======
   socket.on("connect", () => {
+    // пока не узнали лимит — блокируем "Старт"
+    __mx__limitsLoading = true;
+    setDisabled(startBtn, true);
+
     bootstrapCampaignState()
       .then(() => {
         if (isCampaignActive) {
@@ -862,6 +906,14 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch(() => {});
 
     loadSettings();
+
+    setTimeout(() => {
+      if (__mx__limitsLoading) {
+        __mx__limitsLoading = false;
+        updateOverallReadyState();
+      }
+    }, 5000);
+
     socket.emit("request_whatsapp_status");
   });
 
@@ -1193,13 +1245,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ====== СТАРТ/СТОП РАССЫЛКИ ======
   startBtn?.addEventListener("click", async () => {
+    try {
+      if (__mx__tariffMax != null && __mx__tariffMax > 0) {
+        const used = __mx__readUsed();
+        if (used >= __mx__tariffMax) {
+          await (window.Swal
+            ? Swal.fire(
+                "Лимит тарифа достигнут",
+                `Ваш тариф позволяет максимум ${__mx__tariffMax} получателей, а вы уже достигли лимита.\nПожалуйста, перейдите на другой тарифный план.`,
+                "warning"
+              )
+            : (async () =>
+                alert(
+                  `Лимит тарифа достигнут.\nМаксимум: ${__mx__tariffMax}. Пожалуйста, перейдите на другой тарифный план.`
+                ))());
+          return; // ← критично: не запускаем рассылку
+        }
+      }
+    } catch (_) {}
+
     const { ok, errors, payload } = validateBeforeStart();
+
     if (!ok) {
       const listHtml =
         `<ul style="text-align:left;margin:0;padding-left:1.2em;">` +
         errors.map((e) => `<li>${e}</li>`).join("") +
         `</ul>`;
-      return Swal.fire({ title: "Проверьте параметры", html: listHtml, icon: "warning" });
+      if (window.Swal) {
+        return Swal.fire({ title: "Проверьте параметры", html: listHtml, icon: "warning" });
+      } else {
+        alert("Проверьте параметры:\n- " + errors.join("\n- "));
+        return;
+      }
     }
 
     isCampaignActive = true;
@@ -1351,6 +1428,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (status === "sent") {
       sentCount += 1;
       setCounts({ total: totalCount || sentCount + failedCount, sent: sentCount });
+      if (__mx__tariffMax != null && __mx__tariffMax > 0) {
+        __mx__incUsed(1);
+      }
     }
   });
 
@@ -1362,7 +1442,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Новое: пауза от микросервиса — только { pausing: true|false }
   socket.on("campaign_pausing", ({ pausing, campaignId: id }) => {
-    if (!isCampaignActive || !campaignId || (id && id !== campaignId)) return;
+    if (!campaignId || (id && id !== campaignId)) return;
     // помечаем паузу локально (переживет перезагрузку)
     persistSchedulerPause(!!pausing);
     schedulerPauseActive = !!pausing;
