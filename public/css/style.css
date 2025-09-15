@@ -10,7 +10,7 @@
   --color-danger-dark: #e66060; /* Darker Soft Red for hover */
   --color-warning: #fdcb6e; /* Soft Orange/Yellow */
   --color-info: #0984e3; /* Brighter Blue */
-  --color-light-gray: rgba(255, 255, 255, 0.8); /* Translucent White for cards */
+  --color-light-gray: rgba(255, 255, 255, 0.7); /* Translucent White for cards */
   --color-medium-light-gray: rgba(255, 255, 255, 0.5); /* Lighter translucent for radio backgrounds */
   --color-medium-gray: #e0e0e0; /* Medium gray for progress bar background */
   --color-dark-gray: #333; /* Dark text color */
@@ -42,9 +42,8 @@ html {
 }
 
 body {
-  /* Нейтральный, спокойный градиентный фон */
   /* background: linear-gradient(135deg, #dfe7f6 0%, #dfebfd 100%); */
-  background: hsla(18, 76%, 85%, 1);
+  /* background: hsla(18, 76%, 85%, 1);
 
   background: linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
 
@@ -52,7 +51,9 @@ body {
 
   background: -webkit-linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
 
-  filter: progid: DXImageTransform.Microsoft.gradient( startColorstr="#F6CFBE", endColorstr="#B9DCF2", GradientType=1 );
+  filter: progid: DXImageTransform.Microsoft.gradient( startColorstr="#F6CFBE", endColorstr="#B9DCF2", GradientType=1 ); */
+  background: linear-gradient(rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.93)),
+    /* полупрозрачный слой */ url("/images/main-bg.jpg");
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -73,7 +74,7 @@ body.login-page {
 
 .login-container {
   width: 100%;
-  max-width: 600px; /* Немного шире, чем QR-модал, для лучшего вида */
+  max-width: 580px; /* Немного шире, чем QR-модал, для лучшего вида */
 }
 
 .login-container h2 {
@@ -88,7 +89,7 @@ body.login-page {
 .login-container form {
   background-color: var(--color-light-gray); /* Полупрозрачный фон из ваших стилей */
   border-radius: 20px; /* Сильнее закругленные углы */
-  padding: 40px; /* Увеличенный паддинг */
+  padding: 34px; /* Увеличенный паддинг */
   box-shadow: 0 10px 30px var(--color-shadow-medium); /* Более выраженная мягкая тень */
   backdrop-filter: blur(6px); /* Эффект "матового стекла" */
   border: 1px solid rgba(255, 255, 255, 0.3); /* Тонкая светлая обводка */
@@ -238,6 +239,11 @@ body.login-page {
   gap: 20px;
 }
 
+.btn.btn-login {
+  margin-top: 20px;
+  padding: 20px 25px;
+}
+
 .btn.btn-support {
   position: relative;
   box-shadow: none;
@@ -300,7 +306,7 @@ main {
   border-radius: 20px; /* Сильнее закругленные углы */
   padding: 30px;
   box-shadow: 0 10px 30px var(--color-shadow-medium); /* Более выраженная мягкая тень */
-  backdrop-filter: blur(6px); /* Эффект "матового стекла" */
+  backdrop-filter: blur(2px); /* Эффект "матового стекла" */
   border: 1px solid rgba(255, 255, 255, 0.3); /* Тонкая светлая обводка */
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -1172,14 +1178,6 @@ textarea:focus {
     padding-bottom: 46vh;
   }
 
-  .header-container {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
-    padding: 15px;
-    margin-top: 15px;
-  }
-
   .header-container h1 {
     font-size: 1.8em;
   }
@@ -1273,6 +1271,16 @@ textarea:focus {
 
   textarea {
     min-height: 120px;
+  }
+}
+
+@media (max-width: 590px) {
+  .header-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 15px;
+    margin-top: 10px;
   }
 }
 
