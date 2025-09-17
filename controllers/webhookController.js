@@ -74,6 +74,14 @@ exports.schedulerSendWebhook = async (req, res) => {
       // Иначе — падаем ниже и обрабатываем отправку сообщения как обычно
     }
 
+    // ======= Сигнал завершения кампании =======
+    if (body.done === true) {
+      try {
+        io && io.emit("campaign_stopped", { campaignId });
+      } catch (_) {}
+      return res.status(202).json({ success: true, done: true, accepted: true });
+    }
+
     // ======= Обычное задание на отправку (или совместно с pausing) =======
     if (!hasTaskPayload) {
       // сюда дойдём только если pausing не был передан; для чистоты — 422
