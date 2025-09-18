@@ -115,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let totalCount = 0;
   let sentCount = 0;
   let failedCount = 0;
+  let maxClients = null;
 
   // ====== UTILS ======
   const show = (el, display = "inline-flex") => {
@@ -154,35 +155,6 @@ document.addEventListener("DOMContentLoaded", () => {
       apply(el, v);
     }
   };
-
-  // ====== TARIFF / LOCAL USAGE COUNTER (обфускация ключа) ======
-  let __mx__tariffMax = null; // лимит тарифа (max_clients)
-  let __mx__limitsLoading = true; // идёт загрузка лимитов
-  const __mx__prefix = "__sx"; // неочевидный префикс
-
-  function __mx__key() {
-    const host = (location.hostname || "h").slice(0, 6).replace(/[^a-z0-9]/gi, "h");
-    return `${__mx__prefix}:${host}:mx`; // без customer_id
-  }
-  function __mx__readUsed() {
-    try {
-      const raw = localStorage.getItem(__mx__key());
-      const n = raw == null ? 0 : Number(raw);
-      return Number.isFinite(n) && n >= 0 ? n : 0;
-    } catch (_) {
-      return 0;
-    }
-  }
-  function __mx__setUsed(n) {
-    try {
-      localStorage.setItem(__mx__key(), String(Math.max(0, Math.floor(Number(n) || 0))));
-    } catch (_) {}
-  }
-  function __mx__incUsed(delta = 1) {
-    const v = __mx__readUsed() + (Number(delta) || 0);
-    __mx__setUsed(v);
-    return v;
-  }
 
   function openHowto() {
     howtoModal?.classList.add("is-open");
@@ -363,8 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const addrReady = !!addressing;
     const countReady = !!countVal;
     const uploadReady = !!uploadCompleted;
-    const limitsReady = !__mx__limitsLoading;
-    return waReady && tzReady && msgReady && addrReady && countReady && uploadReady && limitsReady;
+    return waReady && tzReady && msgReady && addrReady && countReady && uploadReady;
   }
 
   function updateOverallReadyState() {
@@ -558,10 +529,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const el = msgCountRadios.find((r) => Number(r.value) === Number(s.daily_limit_pref));
       if (el) el.checked = true;
     }
-    if (typeof s.max_clients_pref === "number" || s.max_clients_pref === null) {
-      __mx__tariffMax = Number.isFinite(Number(s.max_clients_pref)) ? Number(s.max_clients_pref) : null;
-    }
-    __mx__limitsLoading = false;
     updateOverallReadyState();
     updateQuietHoursBanner();
   }
@@ -637,9 +604,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const d = await r.json().catch(() => null);
       if (!r.ok || !d?.success) return;
 
-      __mx__tariffMax = Number.isFinite(Number(d.max_clients)) ? Number(d.max_clients) : null;
-      __mx__limitsLoading = false;
-      updateOverallReadyState();
+      maxClients = Number.isFinite(Number(d.max_clients)) ? Number(d.max_clients) : null;
 
       updateUI(d.whatsapp?.state || "closed");
 
@@ -894,10 +859,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ====== Socket.IO: WhatsApp ======
   socket.on("connect", () => {
-    // пока не узнали лимит — блокируем "Старт"
-    __mx__limitsLoading = true;
-    setDisabled(startBtn, true);
-
     bootstrapCampaignState()
       .then(() => {
         if (isCampaignActive) {
@@ -912,13 +873,6 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch(() => {});
 
     loadSettings();
-
-    setTimeout(() => {
-      if (__mx__limitsLoading) {
-        __mx__limitsLoading = false;
-        updateOverallReadyState();
-      }
-    }, 5000);
 
     socket.emit("request_whatsapp_status");
   });
@@ -1252,24 +1206,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // ====== СТАРТ/СТОП РАССЫЛКИ ======
   startBtn?.addEventListener("click", async () => {
     stopNotifyShown = false;
-    try {
-      if (__mx__tariffMax != null && __mx__tariffMax > 0) {
-        const used = __mx__readUsed();
-        if (used >= __mx__tariffMax) {
-          await (window.Swal
-            ? Swal.fire(
-                "Лимит тарифа достигнут",
-                `Ваш тариф позволяет максимум ${__mx__tariffMax} получателей, а вы уже достигли лимита.\nПожалуйста, перейдите на другой тарифный план.`,
-                "warning"
-              )
-            : (async () =>
-                alert(
-                  `Лимит тарифа достигнут.\nМаксимум: ${__mx__tariffMax}. Пожалуйста, перейдите на другой тарифный план.`
-                ))());
-          return; // ← критично: не запускаем рассылку
-        }
-      }
-    } catch (_) {}
 
     const { ok, errors, payload } = validateBeforeStart();
 
@@ -1441,9 +1377,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (status === "sent") {
       sentCount += 1;
       setCounts({ total: totalCount || sentCount + failedCount, sent: sentCount });
-      if (__mx__tariffMax != null && __mx__tariffMax > 0) {
-        __mx__incUsed(1);
-      }
     }
   });
 
