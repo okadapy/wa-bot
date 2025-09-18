@@ -129,10 +129,11 @@ CREATE TABLE IF NOT EXISTS `campaign_reports` (
 CREATE TABLE IF NOT EXISTS phone_blacklist (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     phone VARCHAR(64) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_phone_blacklist_phone (phone)
-);
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- ================================
 -- Usage counter per customer (limits)
