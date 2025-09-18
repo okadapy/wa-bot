@@ -1,4 +1,4 @@
-<header class="header-container">
+<header class="card header-container">
   <h1>
     Панель управления
   </h1>
@@ -9,10 +9,10 @@
         target="_blank"
         rel="noopener noreferrer"
       >
-        <i class="fab fa-whatsapp"></i> Поддержка
+        [ Поддержка ]
       </a>
-    <a href="/logout" class="btn btn-logout">
-      Выйти
+    <a href="/logout" class="btn-logout">
+      [ Выйти ]
     </a>
   </div>
 </header>
@@ -102,9 +102,69 @@
     <div id="upload-status" class="upload-status"></div>
   </div>
 
+<div id="blacklist-card" class="card">
+  <h2>
+    3. Чёрный список
+  </h2>
+
+  <p class="info-text">
+    С 01.09.2025г. получатели вправе отказаться от рассылки. <br>
+    Если получатель уведомил вас об этом, добавляйте его номер в "чёрный список" для исключения из рассылки. <br>
+    Он не будет получать сообщения, даже если его номер находится в базе, которую вы загрузили. 
+   </p>
+
+  <div style="margin-top: 12px;">
+    <button id="open-blacklist-btn" class="btn btn-black">
+      Чёрный список
+    </button>
+  </div>
+</div>
+
+<div id="blacklist-modal" class="modal" aria-hidden="true">
+  <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="blacklist-title" style="max-width: 720px;">
+    <span id="blacklist-close" class="close-button" title="Закрыть">&times;</span>
+
+    <h3 id="blacklist-title" style="margin-bottom: 16px;">Чёрный список</h3>
+
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label for="blacklist-phone">Номер телефона (Россия)</label>
+      <div class="blacklist-input-row">
+        <input id="blacklist-phone" type="tel" class="input"
+               placeholder="+7 9XX XXX-XX-XX" inputmode="tel" />
+        <button id="blacklist-add-btn" class="btn btn-primary" type="button">
+          Добавить
+        </button>
+      </div>
+      <div id="blacklist-hint" class="hint"></div>
+    </div>
+
+    <div id="blacklist-list-wrap" class="blacklist-scroll">
+      <table id="blacklist-table" class="blacklist-table" style="display:none;">
+        <thead>
+          <tr>
+            <th>Номер</th>
+            <th>Добавлен</th>
+            <th class="col-actions">Действия</th>
+          </tr>
+        </thead>
+        <tbody id="blacklist-tbody">
+        </tbody>
+      </table>
+
+      <div id="blacklist-empty" class="blacklist-empty">
+        Список пуст
+      </div>
+
+      <div id="blacklist-loader" class="blacklist-loader" style="display:none;">
+        Загрузка…
+      </div>
+    </div>
+  </div>
+</div>
+
   <div class="card" id="timezone-card">
     <h2>
-      <span>3. Выбор часового пояса</span>
+      <span>4. Выбор часового пояса</span>
       <span class="status-icon status-disconnected" id="timezone-status-icon">
         <i class="fas fa-times-circle"></i>
       </span>
@@ -161,7 +221,7 @@
 
   <div class="card" id="addressing-options-card">
     <h2>
-      <span>4. Настройки рассылки</span>
+      <span>5. Настройки рассылки</span>
       <span class="status-icon status-disconnected" id="addressing-and-delay-status-icon">
         <i class="fas fa-times-circle"></i>
       </span>
@@ -233,7 +293,7 @@
 
   <div class="card" id="message-card">
     <h2>
-      <span>5. Текст сообщения</span>
+      <span>6. Текст сообщения</span>
       <span class="status-icon status-disconnected" id="message-card-status-icon">
         <i class="fas fa-times-circle"></i>
       </span>
@@ -358,7 +418,7 @@
 
 <div class="fixed-bottom-bar">
   <div class="bar-title">
-    <div>6. Управление рассылкой</div>
+    <div>7. Управление рассылкой</div>
     <div class="status-indicator">
       Статус:
       <span id="overall-status-text" class="status-text-ready">Готов</span>
