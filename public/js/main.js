@@ -1414,6 +1414,33 @@ document.addEventListener("DOMContentLoaded", () => {
     setCounts({ total, sent, remaining, failed: failedCount });
   });
 
+  // Когда мы обрезали получателей на старте из-за лимита
+  socket.on("campaign_trimmed_by_limit", ({ allowed, trimmed, limit, used }) => {
+    if (!window.Swal) return;
+    Swal.fire({
+      icon: "warning",
+      title: "Ограничение тарифа",
+      html:
+        `Запрошено отправить слишком много сообщений для текущего тарифа.<br>` +
+        `Будет отправлено: <b>${allowed}</b>. Обрезано: <b>${trimmed}</b>.<br>` +
+        (typeof limit === "number" ? `Лимит: ${used || 0}/${limit}.` : ""),
+    });
+  });
+
+  // Когда лимит был исчерпан во время рассылки
+  socket.on("campaign_limit_exhausted", ({ limit, used }) => {
+    if (window.Swal) {
+      Swal.fire({
+        icon: "info",
+        title: "Лимит исчерпан",
+        html:
+          `Достигнут лимит тарифа: <b>${used || 0}/${limit || "—"}</b>.<br>` +
+          `Отправка остановлена. Выберите более высокий тарифный план, чтобы продолжить.`,
+      });
+    }
+    stopNotifyShown = true;
+  });
+
   // ====== восстановление notice из localStorage ======
   function restoreNoticesFromStorage() {
     // Восстановить паузу от планировщика

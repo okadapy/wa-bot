@@ -1,8 +1,8 @@
 // controllers/webhookController.js
 
 const whatsappService = require("../services/whatsappService");
-// Больше НЕ репортим результат отдельным запросом:
-// const { postResultToScheduler } = require("../services/schedulerClient");
+const { ensureRow, getUsage, addUsage } = require("../services/limitUsageStore");
+const { stopCampaignOnScheduler } = require("../services/schedulerClient");
 const { getCustomerIdByCampaignDB } = require("../services/campaignStore");
 const { bumpProgress } = require("../services/campaignStateStore");
 const { enterOnce } = require("../services/dedupStore");
@@ -164,10 +164,64 @@ exports.schedulerSendWebhook = async (req, res) => {
 
       try {
         const customerId = await getCustomerIdByCampaignDB(campaignId);
-        if (customerId) bumpProgress({ customerId, ok: true });
-      } catch (_) {}
+        if (customerId) {
+          // прогресс
+          try {
+            bumpProgress({ customerId, ok: true });
+          } catch (_) {}
 
-      // ВАЖНО: теперь отвечаем УСПЕШНО прямо на вебхук — без отдельного /result
+          // учёт лимита
+          await ensureRow(customerId);
+
+          // модели берем из app.get("db"), а не require("../db")
+          const db = req.app.get("db");
+          const { Customer, TariffPlan } = db || {};
+
+          let maxClients = null;
+          try {
+            if (Customer && TariffPlan) {
+              const cust = await Customer.findByPk(customerId);
+              if (cust?.tariff_plan_id) {
+                const tariff = await TariffPlan.findByPk(cust.tariff_plan_id);
+                if (tariff) maxClients = Number(tariff.max_clients) || null;
+              }
+            }
+          } catch (_) {}
+
+          if (maxClients != null && maxClients > 0) {
+            // успех = отправили в Baileys/WA
+            const usedAfter = await addUsage(customerId, 1);
+
+            if (usedAfter >= maxClients) {
+              // 1) уведомим фронт
+              try {
+                io &&
+                  io.emit("campaign_limit_exhausted", {
+                    campaignId,
+                    customerId,
+                    limit: maxClients,
+                    used: usedAfter,
+                  });
+              } catch (_) {}
+
+              // 2) попросим планировщик остановить кампанию
+              try {
+                await stopCampaignOnScheduler(campaignId, { reason: "limit_exhausted" });
+              } catch (e) {
+                console.warn("[limit] stopCampaignOnScheduler failed:", e?.message || e);
+              }
+
+              // 3) локально подсветим остановку
+              try {
+                io && io.emit("campaign_stopped", { campaignId });
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[limit] usage update failed:", e?.message || e);
+      }
+
       return res.status(202).json({
         success: true,
         status: "sent",

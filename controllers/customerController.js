@@ -2,7 +2,8 @@
 const fs = require("fs");
 const path = require("path");
 const xlsx = require("xlsx");
-const whatsappService = require("../services/whatsappService"); // сервис работы с WhatsApp
+const whatsappService = require("../services/whatsappService");
+const { ensureRow, getUsage, addUsage, setUsage } = require("../services/limitUsageStore");
 
 module.exports = (app) => {
   const db = app.get("db");
@@ -596,6 +597,38 @@ module.exports = (app) => {
           if (tariff) {
             if (limitDaily == null) limitDaily = Number(tariff.message_limit_daily) || null;
             if (limitMaxClients == null) limitMaxClients = Number(tariff.max_clients) || null;
+          }
+          if (limitMaxClients != null && Number(limitMaxClients) > 0) {
+            await ensureRow(customerId);
+            const used = await getUsage(customerId);
+            const remaining = Math.max(0, Number(limitMaxClients) - Number(used));
+
+            if (remaining <= 0) {
+              const io = req.app.get("io");
+              io && io.emit("campaign_limit_exhausted", { customerId, limit: Number(limitMaxClients), used });
+              return res.status(409).json({
+                success: false,
+                message: `Лимит тарифа исчерпан: ${used}/${limitMaxClients}. Перейдите на более высокий план.`,
+                limit: Number(limitMaxClients),
+                used,
+              });
+            }
+
+            if (clients.length > remaining) {
+              const allowed = remaining;
+              const trimmed = clients.length - allowed;
+              clients = clients.slice(0, allowed);
+
+              const io = req.app.get("io");
+              io &&
+                io.emit("campaign_trimmed_by_limit", {
+                  customerId,
+                  allowed,
+                  trimmed,
+                  limit: Number(limitMaxClients),
+                  used,
+                });
+            }
           }
         }
       } catch (e) {
