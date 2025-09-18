@@ -1027,6 +1027,8 @@ textarea:focus {
 .fixed-bottom-bar .bar-title {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 15px;
   width: 100%;
   max-width: 860px; /* Выравнивание по основному контенту */
