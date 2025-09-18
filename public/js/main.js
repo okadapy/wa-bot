@@ -316,6 +316,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   emojiBtn?.addEventListener("click", () => {
+    if (!emojiPicker) return;
     const willShow = emojiPicker.style.display !== "block";
     emojiPicker.style.display = willShow ? "block" : "none";
 
@@ -398,9 +399,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // ====== QUIET HOURS (21:00–10:00 по TZ) ======
   function parseTzOffsetHours(tzStr) {
     if (!tzStr || typeof tzStr !== "string") return null;
-    const m = tzStr.match(/^[+-]?\d+$/);
+    const s = tzStr.trim().toUpperCase();
+    // поддержка: "UTC+3", "GMT-4", "UTC +5", "+3", "-5", "3"
+    const m = s.match(/^(?:(?:UTC|GMT)\s*)?([+-]?\d{1,2})$/);
     if (!m) return null;
-    return parseInt(tzStr, 10);
+    const off = parseInt(m[1], 10);
+    // типичный рабочий диапазон смещений
+    if (!Number.isFinite(off) || off < -12 || off > 14) return null;
+    return off;
   }
   function isQuietHoursNow(tzStr) {
     const off = parseTzOffsetHours(tzStr);
@@ -1245,6 +1251,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ====== СТАРТ/СТОП РАССЫЛКИ ======
   startBtn?.addEventListener("click", async () => {
+    stopNotifyShown = false;
     try {
       if (__mx__tariffMax != null && __mx__tariffMax > 0) {
         const used = __mx__readUsed();
@@ -1385,6 +1392,7 @@ document.addEventListener("DOMContentLoaded", () => {
   socket.on("campaign_started", ({ campaignId: id, timezone, total }) => {
     campaignId = id || campaignId;
     isCampaignActive = true;
+    stopNotifyShown = false;
     if (typeof total === "number") {
       totalCount = total;
       setCounts({ total: totalCount, sent: 0, remaining: totalCount, failed: 0 });
@@ -1416,6 +1424,11 @@ document.addEventListener("DOMContentLoaded", () => {
     overallStatusText && overallStatusText.classList.remove("status-text-running");
     overallStatusText && overallStatusText.classList.add("status-text-ready");
     if (overallStatusText) overallStatusText.textContent = "Остановлено";
+    if (!stopNotifyShown) {
+      if (window.Swal) Swal.fire("Завершено", "Рассылка завершена", "info");
+      else alert("Рассылка завершена");
+      stopNotifyShown = true;
+    }
     stopRiskPause();
     persistSchedulerPause(false);
     hideNotice();

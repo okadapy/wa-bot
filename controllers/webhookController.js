@@ -33,12 +33,15 @@ function sleep(ms) {
  * }
  */
 exports.schedulerSendWebhook = async (req, res) => {
+  const io = req.app.get("io");
+  let campaignId = null;
+  let finalizeAfterSend = false;
+
   try {
     const body = req.body || {};
-    const io = req.app.get("io");
 
     // ===== Нормализация входящих полей =====
-    const campaignId = body.campaignId ?? body.campaign_id ?? body.campaignID ?? null;
+    campaignId = body.campaignId ?? body.campaign_id ?? body.campaignID ?? null;
     const phoneNumberRaw = body.phoneNumber ?? body.phone_number ?? null;
 
     const msgTextRaw = body.msgText ?? body.msg_text ?? "";
@@ -75,7 +78,8 @@ exports.schedulerSendWebhook = async (req, res) => {
     }
 
     // ======= Сигнал завершения кампании =======
-    if (body.done === true) {
+    finalizeAfterSend = body.done === true && hasTaskPayload === true;
+    if (body.done === true && !hasTaskPayload) {
       try {
         io && io.emit("campaign_stopped", { campaignId });
       } catch (_) {}
@@ -169,6 +173,7 @@ exports.schedulerSendWebhook = async (req, res) => {
         status: "sent",
         attempts: attempt,
         messageId: waResult.messageId || null,
+        ...(finalizeAfterSend ? { done: true } : {}),
       });
     }
 
@@ -198,6 +203,12 @@ exports.schedulerSendWebhook = async (req, res) => {
   } catch (e) {
     console.error("[/wh/send] unexpected error:", e);
     return res.status(500).json({ success: false, message: "internal_error" });
+  } finally {
+    if (finalizeAfterSend) {
+      try {
+        io && io.emit("campaign_stopped", { campaignId });
+      } catch (_) {}
+    }
   }
 };
 
