@@ -3,10 +3,14 @@ const fs = require("fs");
 const path = require("path");
 const xlsx = require("xlsx");
 const whatsappService = require("../services/whatsappService");
-const { ensureRow, getUsage, addUsage, setUsage } = require("../services/limitUsageStore");
+const { QueryTypes } = require("sequelize");
+
+const { ensureRow, getUsage } = require("../services/limitUsageStore");
 
 module.exports = (app) => {
   const db = app.get("db");
+  const bl = require("../services/blacklistStore")(db.sequelize, QueryTypes);
+  const { listBlacklist, addToBlacklist: addToBL, deleteFromBlacklist } = bl;
 
   if (!db || !db.sequelize || !db.CustomerClient || !db.CustomerClientPhone || !db.Customer) {
     console.error("ERROR: customerController.js: Объект 'db' или одна из его моделей не найдена в app.settings.");
@@ -549,7 +553,9 @@ module.exports = (app) => {
 
       // 2) BLACKLIST: фильтруем прямо здесь перед отправкой в планировщик
       try {
-        const [rowsBL] = await sequelize.query("SELECT phone FROM phone_blacklist");
+        const [rowsBL] = await sequelize.query("SELECT phone FROM blacklist WHERE customer_id = ?", {
+          replacements: [customerId],
+        });
         const blDigits = new Set(rowsBL.map((r) => stripDigits(r.phone)));
         const blLoose = new Set(rowsBL.map((r) => normPhoneLoose(r.phone)));
 
@@ -876,6 +882,56 @@ module.exports = (app) => {
     }
   };
 
+  /** ===== Черный список: получить страницу ===== */
+  exports.getBlacklist = async (req, res) => {
+    try {
+      const customerId = req.session?.customerId;
+      if (!customerId) return res.status(401).json({ success: false, message: "Нет сессии" });
+
+      const page = Number(req.query.page) || 0;
+      const limit = Number(req.query.limit) || 25;
+
+      const { items, total } = await listBlacklist(customerId, page, limit);
+      return res.json({ success: true, items, total });
+    } catch (e) {
+      return res.status(500).json({ success: false, message: e.message || "internal_error" });
+    }
+  };
+
+  /** ===== Черный список: добавить номер ===== */
+  exports.addToBlacklist = async (req, res) => {
+    try {
+      const customerId = req.session?.customerId;
+      if (!customerId) return res.status(401).json({ success: false, message: "Нет сессии" });
+
+      const phone = req.body?.phone;
+      if (!phone) return res.status(422).json({ success: false, message: "Телефон обязателен" });
+
+      const row = await addToBL(customerId, phone);
+      return res.json({ success: true, item: row });
+    } catch (e) {
+      return res.status(400).json({ success: false, message: e.message || "bad_request" });
+    }
+  };
+
+  /** ===== Черный список: удалить по id ===== */
+  exports.deleteFromBlacklist = async (req, res) => {
+    try {
+      const customerId = req.session?.customerId;
+      if (!customerId) return res.status(401).json({ success: false, message: "Нет сессии" });
+
+      const id = Number(req.params?.id);
+      if (!id) return res.status(422).json({ success: false, message: "id обязателен" });
+
+      const ok = await deleteFromBlacklist(customerId, id);
+      if (!ok) return res.status(404).json({ success: false, message: "Не найдено" });
+
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, message: e.message || "internal_error" });
+    }
+  };
+
   // ==== CAMPAIGN SNAPSHOT ====
   exports.getCampaignState = async (req, res) => {
     try {
@@ -939,5 +995,8 @@ module.exports = (app) => {
     getSettings: exports.getSettings,
     saveSettings: exports.saveSettings,
     getCampaignState: exports.getCampaignState,
+    getBlacklist: exports.getBlacklist,
+    addToBlacklist: exports.addToBlacklist,
+    deleteFromBlacklist: exports.deleteFromBlacklist,
   };
 };

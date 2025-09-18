@@ -60,6 +60,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const purgeBtn = document.getElementById("purge-clients-btn");
   const purgeHint = document.getElementById("purge-clients-hint");
 
+  // ====== DOM: Черный список ======
+  const openBlacklistBtn = document.getElementById("open-blacklist-btn");
+  const blacklistModal = document.getElementById("blacklist-modal");
+  const blacklistCloseBtn = document.getElementById("blacklist-close");
+  const blacklistPhoneInput = document.getElementById("blacklist-phone");
+  const blacklistAddBtn = document.getElementById("blacklist-add-btn");
+  const blacklistHint = document.getElementById("blacklist-hint");
+  const blacklistWrap = document.getElementById("blacklist-list-wrap");
+  const blacklistTable = document.getElementById("blacklist-table");
+  const blacklistTbody = document.getElementById("blacklist-tbody");
+  const blacklistEmpty = document.getElementById("blacklist-empty");
+  const blacklistLoader = document.getElementById("blacklist-loader");
+
   // ====== DOM: Параметры рассылки ======
   const timezoneSelect = document.getElementById("timezone-select");
   const tzStatusIcon = document.getElementById("timezone-status-icon");
@@ -115,7 +128,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let totalCount = 0;
   let sentCount = 0;
   let failedCount = 0;
-  let maxClients = null;
 
   // ====== UTILS ======
   const show = (el, display = "inline-flex") => {
@@ -130,6 +142,17 @@ document.addEventListener("DOMContentLoaded", () => {
       el.hidden = true;
     }
   };
+
+  // === ЛОК: скролл-блок для модалок (общий на все модалки) ===
+  let __openModals = 0;
+  function lockScroll() {
+    __openModals += 1;
+    if (__openModals === 1) document.body.classList.add("modal-open");
+  }
+  function unlockScroll() {
+    __openModals = Math.max(0, __openModals - 1);
+    if (__openModals === 0) document.body.classList.remove("modal-open");
+  }
   const setDisabled = (el, v) => {
     const apply = (node, disabled) => {
       if (!node) return;
@@ -159,10 +182,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function openHowto() {
     howtoModal?.classList.add("is-open");
     howtoModal?.setAttribute("aria-hidden", "false");
+    lockScroll();
   }
   function closeHowto() {
     howtoModal?.classList.remove("is-open");
     howtoModal?.setAttribute("aria-hidden", "true");
+    unlockScroll();
   }
 
   howtoLink?.addEventListener("click", (e) => {
@@ -178,16 +203,23 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   uploadHowtoLink?.addEventListener("click", () => {
-    if (uploadHowtoModal) uploadHowtoModal.style.display = "block";
+    if (uploadHowtoModal) {
+      uploadHowtoModal.style.display = "block";
+      lockScroll();
+    }
   });
 
   uploadHowtoClose?.addEventListener("click", () => {
-    if (uploadHowtoModal) uploadHowtoModal.style.display = "none";
+    if (uploadHowtoModal) {
+      uploadHowtoModal.style.display = "none";
+      unlockScroll();
+    }
   });
 
   window.addEventListener("click", (e) => {
     if (e.target === uploadHowtoModal && uploadHowtoModal) {
       uploadHowtoModal.style.display = "none";
+      unlockScroll();
     }
   });
 
@@ -210,15 +242,137 @@ document.addEventListener("DOMContentLoaded", () => {
     noticeBox.style.display = "none";
   }
 
-  // === Счётчик длины сообщения
-  if (msgTemplate && msgCounter) {
-    const updateLocalCounter = () => {
-      const len = (msgTemplate.value || "").length;
-      msgCounter.textContent = `${len} / ${MSG_MAXLEN}`;
-      msgCounter.style.color = len >= MSG_MAXLEN ? "red" : "";
-    };
-    msgTemplate.addEventListener("input", updateLocalCounter);
-    updateLocalCounter();
+  // ====== BLACKLIST STATE ======
+  let blPage = 0;
+  const BL_PAGE_SIZE = 25;
+  let blHasMore = true;
+  let blLoading = false;
+
+  // Нормализация RU номера: оставляем цифры, приводим к +7XXXXXXXXXX
+  function normalizeRuPhone(input) {
+    const digits = String(input || "").replace(/\D+/g, "");
+    if (!digits) return "";
+    // допускаем 8XXXXXXXXXX -> 7XXXXXXXXXX
+    let core = digits;
+    if (core.length === 11 && (core.startsWith("7") || core.startsWith("8"))) {
+      core = "7" + core.slice(1);
+    }
+    // если 10 цифр (без кода страны) — считаем, что это российский моб.
+    if (core.length === 10) core = "7" + core;
+    if (core.length !== 11 || !core.startsWith("7")) return ""; // только РФ 11 цифр на 7
+    return "+" + core;
+  }
+
+  function blShowModal() {
+    if (!blacklistModal) return;
+    blSetHint("");
+    blacklistModal.classList.add("active");
+    blacklistModal.setAttribute("aria-hidden", "false");
+    lockScroll();
+    blResetAndLoad();
+  }
+  function blHideModal() {
+    if (!blacklistModal) return;
+    blacklistModal.classList.remove("active");
+    blacklistModal.setAttribute("aria-hidden", "true");
+    unlockScroll();
+    blSetHint("");
+    if (blacklistPhoneInput) blacklistPhoneInput.value = "";
+  }
+  function blSetHint(text, kind = "info") {
+    if (!blacklistHint) return;
+    blacklistHint.textContent = text || "";
+    blacklistHint.classList.remove("error", "warn", "info");
+    blacklistHint.classList.add(kind);
+  }
+  function blToggleLoader(v) {
+    if (blacklistLoader) blacklistLoader.style.display = v ? "block" : "none";
+  }
+
+  function blRenderRows(items) {
+    if (!Array.isArray(items) || !blacklistTbody) return;
+    const frag = document.createDocumentFragment();
+    for (const row of items) {
+      // ожидаем { id, phone, created_at }
+      const tr = document.createElement("tr");
+
+      const tdPhone = document.createElement("td");
+      tdPhone.textContent = row.phone || "";
+      tr.appendChild(tdPhone);
+
+      const tdDate = document.createElement("td");
+      tdDate.textContent = row.created_at ? new Date(row.created_at).toLocaleString("ru-RU") : "";
+      tr.appendChild(tdDate);
+
+      const tdActions = document.createElement("td");
+      tdActions.className = "col-actions";
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn-stop blacklist-remove-btn";
+      delBtn.type = "button";
+      delBtn.textContent = "Удалить";
+      delBtn.dataset.id = row.id;
+      delBtn.addEventListener("click", async () => {
+        if (isCampaignActive) return; // на ходу не трогаем
+        try {
+          const r = await fetch(`/customer/blacklist/${row.id}`, { method: "DELETE" });
+          const d = await r.json().catch(() => null);
+          if (!r.ok || !d?.success) throw new Error(d?.message || `Ошибка удаления (${r.status})`);
+          // убрать строку
+          tr.remove();
+          if (!blacklistTbody?.children?.length) {
+            if (blacklistEmpty) blacklistEmpty.style.display = "block";
+            if (blacklistTable) blacklistTable.style.display = "none";
+          }
+        } catch (e) {
+          if (window.Swal) Swal.fire("Не удалось удалить", e.message || "Ошибка", "error");
+        }
+      });
+      tdActions.appendChild(delBtn);
+      tr.appendChild(tdActions);
+
+      frag.appendChild(tr);
+    }
+    blacklistTbody.appendChild(frag);
+  }
+
+  async function blFetchPage(page) {
+    blLoading = true;
+    blToggleLoader(true);
+    try {
+      const r = await fetch(`/customer/blacklist?page=${page}&limit=${BL_PAGE_SIZE}`, { cache: "no-store" });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.success) throw new Error(d?.message || `Ошибка загрузки (${r.status})`);
+
+      const items = Array.isArray(d.items) ? d.items : [];
+      blRenderRows(items);
+
+      const total = Number(d.total || 0);
+      const loaded = (page + 1) * BL_PAGE_SIZE;
+      blHasMore = loaded < total;
+
+      // empty state
+      if (page === 0 && items.length === 0) {
+        blacklistEmpty.style.display = "block";
+        blacklistTable.style.display = "none";
+      } else {
+        blacklistEmpty.style.display = "none";
+        blacklistTable.style.display = "";
+      }
+    } catch (e) {
+      if (window.Swal) Swal.fire("Ошибка", e.message || "Не удалось загрузить чёрный список", "error");
+    } finally {
+      blLoading = false;
+      blToggleLoader(false);
+    }
+  }
+
+  function blResetAndLoad() {
+    if (!blacklistTbody) return;
+    blacklistTbody.innerHTML = "";
+    blPage = 0;
+    blHasMore = true;
+    blLoading = false;
+    blFetchPage(blPage);
   }
 
   function updateMsgCounter() {
@@ -260,11 +414,6 @@ document.addEventListener("DOMContentLoaded", () => {
     alert(`${title}\n\n${text}`);
   };
 
-  function showAlert(htmlText) {
-    if (!alertBanner || !alertText) return;
-    alertText.innerHTML = htmlText;
-    alertBanner.style.display = "block";
-  }
   function hideAlert() {
     if (!alertBanner) return;
     alertBanner.style.display = "none";
@@ -286,6 +435,65 @@ document.addEventListener("DOMContentLoaded", () => {
       window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
     }, 50);
   }
+
+  openBlacklistBtn?.addEventListener("click", () => {
+    if (isCampaignActive) return; // во время рассылки — заблокировано
+    blShowModal();
+    blacklistPhoneInput?.focus();
+  });
+  blacklistCloseBtn?.addEventListener("click", blHideModal);
+
+  blacklistModal?.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t && t.classList.contains("modal")) {
+      blHideModal();
+    }
+  });
+
+  blacklistAddBtn?.addEventListener("click", async () => {
+    if (isCampaignActive) return;
+    blSetHint("");
+    const raw = blacklistPhoneInput?.value || "";
+    const normalized = normalizeRuPhone(raw);
+    if (!normalized) {
+      blSetHint("Введите корректный номер РФ, например +7 9XX XXX-XX-XX", "warn");
+      return;
+    }
+    try {
+      const r = await fetch("/customer/blacklist/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalized }),
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.success) throw new Error(d?.message || `Ошибка добавления (${r.status})`);
+      blSetHint("Добавлено", "info");
+      blacklistPhoneInput.value = "";
+      // перезагрузим список с нуля, чтобы наверху был свежий
+      blResetAndLoad();
+    } catch (e) {
+      blSetHint(e.message || "Не удалось добавить номер", "error");
+    }
+  });
+
+  blacklistPhoneInput?.addEventListener("input", () => blSetHint(""));
+
+  blacklistPhoneInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      blacklistAddBtn?.click();
+    }
+  });
+
+  // Бесконечная подгрузка (только скролл модалки)
+  blacklistWrap?.addEventListener("scroll", () => {
+    if (!blHasMore || blLoading) return;
+    const nearBottom = blacklistWrap.scrollTop + blacklistWrap.clientHeight >= blacklistWrap.scrollHeight - 40;
+    if (nearBottom) {
+      blPage += 1;
+      blFetchPage(blPage);
+    }
+  });
 
   emojiBtn?.addEventListener("click", () => {
     if (!emojiPicker) return;
@@ -417,7 +625,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // ====== RISK-PAUSE (локальный 24ч обратный отсчёт) ======
   let riskPauseActive = false;
   let riskPauseTimer = null;
-  let riskPauseRemainingSec = 0;
 
   function formatHMS(totalSec) {
     const s = Math.max(0, Math.floor(totalSec));
@@ -604,8 +811,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const d = await r.json().catch(() => null);
       if (!r.ok || !d?.success) return;
 
-      maxClients = Number.isFinite(Number(d.max_clients)) ? Number(d.max_clients) : null;
-
       updateUI(d.whatsapp?.state || "closed");
 
       const c = d.campaign;
@@ -728,6 +933,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Модалка QR
     if (manualConnectRequested && (status === "connecting" || status === "loading" || status === "reconnecting")) {
       qrModal?.classList.add("active");
+      lockScroll();
       if (qrContainer) {
         qrContainer.innerHTML = "";
         qrContainer.textContent = "Ожидание QR-кода...";
@@ -737,6 +943,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (status === "qr" && manualConnectRequested) {
       qrModal?.classList.add("active");
+      lockScroll();
       if (qrCodeString) {
         if (qrContainer) {
           qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
@@ -754,6 +961,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Для всех статусов, кроме "connecting/loading/reconnecting/qr", закрываем модалку
       if (!["connecting", "loading", "reconnecting", "qr"].includes(status)) {
         qrModal?.classList.remove("active");
+        unlockScroll();
         stopQrTimer();
         isFirstQr = true;
       }
@@ -832,6 +1040,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   closeModalBtn?.addEventListener("click", () => {
     qrModal?.classList.remove("active");
+    unlockScroll();
     stopQrTimer();
     manualConnectRequested = false;
     socket.emit("cancel_qr_flow");
@@ -926,6 +1135,7 @@ document.addEventListener("DOMContentLoaded", () => {
   socket.on("wa_qr", ({ dataUrl }) => {
     manualConnectRequested = true;
     qrModal?.classList.add("active");
+
     if (qrContainer) {
       const html = dataUrl ? `<img src="${dataUrl}" alt="QR Code">` : `<span>QR-код готов. Обновите окно.</span>`;
       qrContainer.innerHTML = html;
@@ -937,6 +1147,7 @@ document.addEventListener("DOMContentLoaded", () => {
   socket.on("qr_image", (dataUrl) => {
     manualConnectRequested = true;
     qrModal?.classList.add("active");
+
     if (qrContainer) qrContainer.innerHTML = `<img src="${dataUrl}" alt="QR Code">`;
     if (currentStatus !== "qr") updateUI("qr");
     if (!qrTimerInterval) startQrTimer();
@@ -1178,6 +1389,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setDisabled(connectBtn, true);
     setDisabled(deleteBtn, true);
+
+    setDisabled(openBlacklistBtn, true);
+    setDisabled(blacklistAddBtn, true);
   }
 
   function unlockMain() {
@@ -1197,6 +1411,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setDisabled(connectBtn, false);
     setDisabled(deleteBtn, false);
+
+    setDisabled(openBlacklistBtn, false);
+    setDisabled(blacklistAddBtn, false);
 
     updateOverallReadyState();
     hideNotice();
@@ -1471,6 +1688,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setIconConnected(tzStatusIcon, !!timezoneSelect?.value);
   const validMsg = !!msgTemplate?.value?.trim() && /\(\(\s*клиент\s*\)\)/i.test(msgTemplate.value || "");
   setIconConnected(messageCardStatusIcon, validMsg);
+  updateMsgCounter();
   updateOverallReadyState();
   markAddressingAndDelay();
   autoConnectIfHasSavedSession();

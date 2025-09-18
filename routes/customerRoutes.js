@@ -52,6 +52,10 @@ module.exports = (app) => {
   router.get("/has-saved-session", customerController.hasSavedSession);
   router.post("/delete-whatsapp-session", customerController.deleteWhatsAppSession);
 
+  router.get("/blacklist", customerController.getBlacklist);
+  router.post("/blacklist/add", express.json(), customerController.addToBlacklist);
+  router.delete("/blacklist/:id", customerController.deleteFromBlacklist);
+
   console.log("routes/customerRoutes.js: Роуты для клиента успешно настроены.");
   return router;
 };
