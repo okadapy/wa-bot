@@ -448,7 +448,6 @@ document.addEventListener("DOMContentLoaded", () => {
   openBlacklistBtn?.addEventListener("click", () => {
     if (isCampaignActive) return; // во время рассылки — заблокировано
     blShowModal();
-    blacklistPhoneInput?.focus();
   });
   blacklistCloseBtn?.addEventListener("click", blHideModal);
 
@@ -1799,4 +1798,75 @@ document.addEventListener("DOMContentLoaded", () => {
   autoConnectIfHasSavedSession();
   refreshUploadSummary();
   restoreNoticesFromStorage();
+
+  // --- Anti-stuck scroll lock: keep body.modal-open in sync with real modals ---
+  (function () {
+    const isVisible = (el) => {
+      if (!el) return false;
+      const style = window.getComputedStyle(el);
+      return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+    };
+
+    function anyModalOpen() {
+      const qr = document.getElementById("qr-modal");
+      const bl = document.getElementById("blacklist-modal");
+      const howto = document.getElementById("howto-modal");
+      const uploadHowto = document.getElementById("upload-howto-modal");
+
+      const opened = [
+        qr && qr.classList.contains("active"),
+        bl && bl.classList.contains("active"),
+        howto && howto.classList.contains("is-open"),
+        uploadHowto && isVisible(uploadHowto),
+      ].some(Boolean);
+
+      // SweetAlert2: если открыт, на body будет класс 'swal2-shown'
+      const swalOpen = document.body.classList.contains("swal2-shown");
+
+      return opened || swalOpen;
+    }
+
+    function syncScrollLockWithDom() {
+      const shouldLock = anyModalOpen();
+      if (shouldLock) {
+        document.body.classList.add("modal-open");
+      } else {
+        document.body.classList.remove("modal-open");
+      }
+    }
+
+    // Синхронизируем на основных событиях
+    ["click", "keydown", "pointerdown", "focus", "blur", "resize", "orientationchange", "visibilitychange"].forEach(
+      (ev) => {
+        window.addEventListener(ev, syncScrollLockWithDom, true);
+      }
+    );
+
+    // На всякий: периодическая проверка
+    setInterval(syncScrollLockWithDom, 1000);
+
+    // Вызвать сразу
+    syncScrollLockWithDom();
+
+    // Обернём Swal.fire так, чтобы после закрытия оно точно снимало лок
+    if (window.Swal && typeof Swal.fire === "function") {
+      const __origFire = Swal.fire.bind(Swal);
+      Swal.fire = (...args) => {
+        const p = __origFire(...args);
+        Promise.resolve(p).finally(syncScrollLockWithDom);
+        return p;
+      };
+    }
+  })();
+
+  // One-shot fail-safe: если скролл пропал, аккуратно снимем блокировку
+  setTimeout(() => {
+    const noScroll = getComputedStyle(document.body).overflow === "hidden";
+    const modalShown = document.body.classList.contains("modal-open");
+    if (noScroll && !modalShown) {
+      document.body.style.overflow = ""; // вернуть по умолчанию
+      document.body.style.touchAction = ""; // вернуть по умолчанию
+      document.body.classList.remove("modal-open");
+    }
+  }, 1500);
 });

@@ -1478,11 +1478,24 @@ emoji-picker {
     padding: 15px;
     margin-top: 10px;
   }
+  .blacklist-table tbody td {
+    padding: 6px 7px;
+  }
+  #blacklist-table th {
+    text-align: center;
+  }
+  #blacklist-tbody td {
+    font-size: 0.9rem;
+    text-align: center;
+  }
 }
 
 @media (max-width: 500px) {
   html {
     font-size: 14px;
+  }
+  main {
+    padding: 0 8px;
   }
   .login-container {
     width: 96vw;
@@ -1512,6 +1525,18 @@ emoji-picker {
     padding: 10px;
     width: 100%;
   }
+  #blacklist-modal .modal-content {
+    padding: 12px 14px;
+  }
+  .modal-content h3 {
+    font-size: 1.6em;
+  }
+  .blacklist-input-row {
+    gap: 6px;
+  }
+  .blacklist-table .col-actions {
+    width: 100px;
+  }
   #emoji-picker {
     bottom: calc(var(--bottom-bar-h) - 184px);
   }
@@ -1530,4 +1555,45 @@ emoji-picker {
     flex-wrap: nowrap;
     gap: 8px;
   }
+}
+
+@media screen and (max-width: 400px) {
+  main {
+    padding: 0 4px;
+  }
+  #blacklist-add-btn,
+  .blacklist-input-row .input {
+    font-size: 0.9em;
+  }
+  #blacklist-table th {
+    font-size: 1rem;
+  }
+  .blacklist-table .col-actions {
+    width: 90px;
+  }
+  #blacklist-tbody td {
+    font-size: 0.83rem;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 1024px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+input[type="text"],
+input[type="tel"],
+input[type="email"],
+input[type="number"],
+input[type="password"],
+textarea {
+  font-size: 16px !important;
 }
