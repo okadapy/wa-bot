@@ -1,31 +1,29 @@
-/* Color Variables */
 :root {
-  --color-primary: #6c5ce7; /* Soft Purple */
-  --color-primary-dark: #5a4cb3; /* Darker Purple for hover */
-  --color-secondary: #a29bfe; /* Light Purple/Blue */
-  --color-secondary-dark: #8c83e7; /* Darker Light Purple/Blue for hover */
-  --color-success: #00b894; /* Teal Green */
-  --color-success-dark: #00997a; /* Darker Teal Green for hover */
-  --color-danger: #ff7675; /* Soft Red */
-  --color-danger-dark: #e66060; /* Darker Soft Red for hover */
-  --color-warning: #fdcb6e; /* Soft Orange/Yellow */
-  --color-info: #0984e3; /* Brighter Blue */
-  --color-light-gray: rgba(255, 255, 255, 0.7); /* Translucent White for cards */
-  --color-medium-light-gray: rgba(255, 255, 255, 0.5); /* Lighter translucent for radio backgrounds */
-  --color-medium-gray: #e0e0e0; /* Medium gray for progress bar background */
-  --color-dark-gray: #333; /* Dark text color */
-  --color-heading: #2d3436; /* Darker text for headings */
-  --color-text: #4a4a4a; /* Main text color */
-  --color-background-light: #f4f7f9; /* Body background (will be overridden by gradient) */
-  --color-white: #fff; /* White */
-  --color-border-light: rgba(255, 255, 255, 0.3); /* Lighter border for headings */
-  --color-shadow-light: rgba(0, 0, 0, 0.05); /* Very soft shadow */
-  --color-shadow-medium: rgba(0, 0, 0, 0.1); /* Medium shadow */
-  --color-qr-border: rgba(0, 0, 0, 0.15); /* Border for QR code container */
+  --color-primary: #6c5ce7;
+  --color-primary-dark: #5a4cb3;
+  --color-secondary: #a29bfe;
+  --color-secondary-dark: #8c83e7;
+  --color-success: #00b894;
+  --color-success-dark: #00997a;
+  --color-danger: #ff7675;
+  --color-danger-dark: #e66060;
+  --color-warning: #fdcb6e;
+  --color-info: #0984e3;
+  --color-light-gray: rgba(255, 255, 255, 0.7);
+  --color-medium-light-gray: rgba(255, 255, 255, 0.5);
+  --color-medium-gray: #e0e0e0;
+  --color-dark-gray: #333;
+  --color-heading: #2d3436;
+  --color-text: #4a4a4a;
+  --color-background-light: #f4f7f9;
+  --color-white: #fff;
+  --color-border-light: rgba(255, 255, 255, 0.3);
+  --color-shadow-light: rgba(0, 0, 0, 0.05);
+  --color-shadow-medium: rgba(0, 0, 0, 0.1);
+  --color-qr-border: rgba(0, 0, 0, 0.15);
   --bottom-bar-h: 72px;
 }
 
-/* Base styles */
 *,
 *::before,
 *::after {
@@ -38,22 +36,11 @@ html {
   font-size: 16px;
   line-height: 1.5;
   color: var(--color-text);
-  font-family: "Inter", sans-serif; /* Using Inter font */
+  font-family: "Inter", sans-serif;
 }
 
 body {
-  /* background: linear-gradient(135deg, #dfe7f6 0%, #dfebfd 100%); */
-  /* background: hsla(18, 76%, 85%, 1);
-
-  background: linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
-
-  background: -moz-linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
-
-  background: -webkit-linear-gradient(90deg, hsla(18, 76%, 85%, 1) 0%, hsla(203, 69%, 84%, 1) 100%);
-
-  filter: progid: DXImageTransform.Microsoft.gradient( startColorstr="#F6CFBE", endColorstr="#B9DCF2", GradientType=1 ); */
-  background: linear-gradient(rgba(255, 255, 255, 0.915), rgba(255, 255, 255, 0.915)),
-    /* полупрозрачный слой */ url("/images/main-bg.jpg");
+  background: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92)), url("/images/main-bg.jpg");
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -61,44 +48,58 @@ body {
   padding-bottom: 28vh;
 }
 
-/* --- Стили для страницы авторизации (login.hbs) --- */
+body.modal-open {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
 body.login-page {
-  /* Используем класс body.login-page для стилизации только страницы входа */
-  display: flex; /* Переопределяем flex-direction: column; на align-items: center; */
-  flex-direction: row; /* Для центрирования по вертикали */
+  display: flex;
+  flex-direction: row;
   justify-content: center;
   align-items: center;
-  padding-bottom: 0; /* Убираем нижний отступ, специфичный для дашборда */
-  padding: 20px; /* Общий отступ для адаптивности */
+  padding-bottom: 0;
+  padding: 20px;
 }
 
 .login-container {
   width: 100%;
-  max-width: 580px; /* Немного шире, чем QR-модал, для лучшего вида */
+  max-width: 580px;
 }
 
 .login-container h2 {
-  font-size: 2.2em;
+  font-size: 1.85em;
   color: var(--color-heading);
-  margin-bottom: 30px; /* Увеличенный отступ */
+  margin-bottom: 4px;
   font-weight: 700;
   text-shadow: 1px 1px 2px var(--color-shadow-light);
   text-align: center;
 }
 
-.login-container form {
-  background-color: var(--color-light-gray); /* Полупрозрачный фон из ваших стилей */
-  border-radius: 20px; /* Сильнее закругленные углы */
-  padding: 34px; /* Увеличенный паддинг */
-  box-shadow: 0 10px 30px var(--color-shadow-medium); /* Более выраженная мягкая тень */
-  backdrop-filter: blur(6px); /* Эффект "матового стекла" */
-  border: 1px solid rgba(255, 255, 255, 0.3); /* Тонкая светлая обводка */
-  text-align: center;
-  animation: fadeIn 0.5s ease-out; /* Анимация появления */
-  display: flex; /* Для управления элементами формы */
-  flex-direction: column;
-  gap: 20px; /* Отступ между группами ввода */
+.card.login-h2-card {
+  padding: 15px;
 }
+
+.login-container form {
+  background-color: var(--color-light-gray);
+  border-radius: 20px;
+  padding: 34px;
+  box-shadow: inset 0 0 8px var(--color-shadow-medium);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  text-align: center;
+  animation: fadeIn 0.5s ease-out;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 #phone,
 #password {
   background-color: #f7f7f7;
@@ -135,13 +136,13 @@ body.login-page {
 .form-group input[type="text"],
 .form-group input[type="password"] {
   width: 100%;
-  padding: 12px 15px;
+  padding: 10px 15px;
   border: 1px solid var(--color-border-light);
-  border-radius: 12px; /* Закругленные углы */
-  background-color: rgba(255, 255, 255, 0.9); /* Почти белый фон */
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.9);
   font-size: 1em;
   color: var(--color-text);
-  box-shadow: inset 0 1px 3px var(--color-shadow-light);
+  box-shadow: inset 0 1px 2px var(--color-shadow-light);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -157,26 +158,22 @@ body.login-page {
   color: var(--color-white);
   padding: 10px 15px;
   border-radius: 10px;
-  margin-bottom: 0; /* Уже есть gap в форме */
+  margin-bottom: 0;
   font-size: 0.95em;
   box-shadow: 0 2px 8px rgba(255, 118, 117, 0.3);
 }
 
-/* Кнопка Войти - используем ваши общие стили для кнопок */
-/* Стили для .btn уже есть в файле, просто убедимся, что они применяются */
 .btn {
   padding: 12px 25px;
   border: none;
-  border-radius: 12px; /* Закругленные */
+  border-radius: 12px;
   cursor: pointer;
-  font-size: 1.1em; /* Немного крупнее для кнопки логина */
+  font-size: 1em;
   font-weight: 600;
   transition: all 0.3s ease;
   box-shadow: 0 4px 10px var(--color-shadow-medium);
-  margin-top: 10px; /* Отступ от полей ввода/сообщения об ошибке */
+  margin-top: 10px;
 }
-
-/* Стили для .btn-primary уже есть в файле */
 
 .register-link {
   margin-top: 25px;
@@ -197,14 +194,16 @@ body.login-page {
   text-decoration: underline;
 }
 
-/* Адаптивность для страницы авторизации */
 @media (max-width: 500px) {
+  .login-container {
+    width: 78vw;
+  }
   .login-container form {
-    padding: 30px 20px; /* Уменьшаем паддинг на маленьких экранах */
+    padding: 30px 20px;
     border-radius: 15px;
   }
   .login-container h2 {
-    font-size: 1.8em;
+    font-size: 1.7em;
     margin-bottom: 25px;
   }
   .btn {
@@ -212,36 +211,34 @@ body.login-page {
     padding: 10px 20px;
   }
 }
-/* --- Конец стилей для страницы авторизации --- */
 
-/* Header */
 .header-container {
-  width: 100%;
-  max-width: 900px;
+  margin: 0 auto;
+  max-width: 720px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 20px;
   margin-top: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 40px;
 }
 
 .header-container h1 {
-  font-size: 2em;
+  font-size: 1.8em;
   color: var(--color-heading);
-
   font-weight: 700;
   text-shadow: 1px 1px 2px var(--color-shadow-light);
 }
 
 .header-btn-group {
   display: flex;
-  gap: 20px;
+  align-items: center;
+  gap: 4px;
 }
 
 .btn.btn-login {
   margin-top: 20px;
-  padding: 20px 25px;
+  padding: 14px 25px;
 }
 
 .btn.btn-support {
@@ -253,71 +250,55 @@ body.login-page {
   transition: color 0.3s ease;
 }
 
-.btn.btn-support::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 10px;
-  width: 66%;
-  height: 2px;
-  background-color: var(--color-success);
-  transition: 0.3s ease;
+.btn-support-login_wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.btn.btn-support-login {
+  display: inline;
+  color: #a2a2a2;
 }
 
 .btn.btn-support:hover {
   color: var(--color-success-dark);
 }
 
-.btn.btn-support:hover::after {
-  background-color: var(--color-success-dark);
-  width: 0;
-}
 .header-container .btn-logout {
-  background-color: var(--color-white);
   color: var(--color-danger);
-  padding: 10px 20px;
-  border-radius: 12px; /* Более закругленные */
   text-decoration: none;
   font-weight: 600;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 4px 6px var(--color-shadow-medium);
+  transition: color 0.3s ease, transform 0.2s ease;
   margin-top: 0;
 }
 
 .header-container .btn-logout:hover {
-  background-color: var(--color-danger-dark);
-  transform: translateY(-2px);
+  color: var(--color-danger-dark);
 }
 
-/* Main Content Area */
 main {
   width: 100%;
-  max-width: 760px;
+  max-width: 720px;
   padding: 0 20px;
   display: grid;
   grid-template-columns: 1fr;
   gap: 25px;
 }
 
-/* Card Styling */
 .card {
-  background-color: var(--color-light-gray); /* Полупрозрачный фон */
-  border-radius: 20px; /* Сильнее закругленные углы */
+  background-color: var(--color-light-gray);
+  border-radius: 20px;
   padding: 30px;
-  box-shadow: 0 10px 30px var(--color-shadow-medium); /* Более выраженная мягкая тень */
-  backdrop-filter: blur(2px); /* Эффект "матового стекла" */
-  border: 1px solid rgba(255, 255, 255, 0.3); /* Тонкая светлая обводка */
+  box-shadow: inset 0 0 8px var(--color-shadow-medium);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  border: 1.5px solid var(--color-white);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* .card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
-} */
-
 .card h2 {
-  font-size: 1.6em;
+  font-size: 1.5em;
   color: var(--color-heading);
   margin-bottom: 30px;
   display: flex;
@@ -326,7 +307,7 @@ main {
   font-weight: 600;
   background-color: var(--color-white);
   border-radius: 12px;
-  padding: 4px 10px;
+  padding: 4px 0;
   width: 100%;
 }
 
@@ -345,7 +326,7 @@ main {
 }
 
 .card .code-highlight {
-  background-color: rgba(108, 92, 231, 0.1); /* Цвет подсвеченного кода */
+  background-color: rgba(108, 92, 231, 0.1);
   padding: 2px 6px;
   border-radius: 5px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
@@ -353,12 +334,10 @@ main {
   color: var(--color-primary);
 }
 
-/* Status Icons */
 .status-icon {
   font-size: 1.2em;
   margin-left: 10px;
-  /* Для Font Awesome это были иконки, теперь это будет просто текст или символ */
-  width: 20px; /* Фиксированная ширина для выравнивания */
+  width: 20px;
   text-align: center;
 }
 
@@ -370,14 +349,13 @@ main {
   color: var(--color-danger);
 }
 
-/* Buttons */
 .btn {
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 12px 25px;
   border: none;
-  border-radius: 12px; /* Более закругленные */
+  border-radius: 12px;
   cursor: pointer;
   font-size: 1em;
   font-weight: 600;
@@ -424,7 +402,6 @@ main {
   box-shadow: 0 6px 15px var(--color-shadow-medium);
 }
 
-/* WhatsApp Auth Section */
 .whatsapp-auth-buttons {
   margin-top: 20px;
   display: flex;
@@ -438,9 +415,11 @@ main {
 }
 
 #wa-howto-link {
+  padding: 4px 6px;
   position: relative;
   transition: 0.3s;
 }
+
 #wa-howto-link:hover {
   cursor: pointer;
   background-color: var(--color-primary);
@@ -452,20 +431,24 @@ main {
   align-items: center;
   gap: 10px;
 }
+
 .howto-modal {
   position: fixed;
   inset: 0;
   display: none;
   z-index: 1000;
 }
+
 .howto-modal.is-open {
   display: block;
 }
+
 .howto-modal__backdrop {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
 }
+
 .howto-modal__dialog {
   position: relative;
   z-index: 1;
@@ -478,6 +461,7 @@ main {
   max-height: calc(100vh - 80px);
   overflow: auto;
 }
+
 .howto-modal__close {
   position: absolute;
   top: 8px;
@@ -502,21 +486,32 @@ main {
   gap: 16px;
   margin-top: 8px;
 }
+
+#howto-title {
+  text-align: center;
+  font-size: 1.6em;
+  margin-bottom: 20px;
+}
+
 .howto-col h4 {
   margin: 8px 0;
   font-size: 15px;
 }
+
 .howto-list {
   margin: 0;
   padding-left: 18px;
 }
+
 .howto-tips {
   margin-top: 12px;
 }
+
 .howto-tips h4 {
   margin: 8px 0;
   font-size: 15px;
 }
+
 .howto-accordion summary {
   cursor: pointer;
   font-weight: 600;
@@ -525,16 +520,17 @@ main {
 
 #upload-howto-link {
   position: relative;
+  padding: 4px 6px;
   color: var(--color-primary);
   transition: 0.3s;
 }
+
 #upload-howto-link:hover {
   cursor: pointer;
   background-color: var(--color-primary);
   color: var(--color-white);
 }
 
-/* Модалка */
 #upload-howto-modal.modal {
   display: none;
   position: fixed;
@@ -547,7 +543,6 @@ main {
   background-color: rgba(0, 0, 0, 0.6);
 }
 
-/* Контент именно для upload-модалки */
 .modal-content-upload {
   display: flex;
   flex-direction: column;
@@ -562,7 +557,9 @@ main {
 }
 
 .modal-content-upload h2 {
+  text-align: center;
   margin-top: 0;
+  font-size: 1.6em;
 }
 
 .modal-content-upload .close-button {
@@ -571,6 +568,7 @@ main {
   font-weight: bold;
   cursor: pointer;
 }
+
 .modal-content-upload .close-button:hover {
   color: var(--color-danger);
 }
@@ -585,7 +583,6 @@ main {
   }
 }
 
-/* QR Modal */
 .modal {
   display: none;
   position: fixed;
@@ -605,15 +602,16 @@ main {
 }
 
 .modal-content {
-  background-color: var(--color-light-gray); /* Полупрозрачный фон */
+  background-color: var(--color-light-gray);
   padding: 30px;
-  border-radius: 25px; /* Закругленные углы */
+  border-radius: 25px;
   position: relative;
   text-align: center;
   width: 100%;
   max-width: 400px;
   box-shadow: 0 10px 30px var(--color-shadow-medium);
-  backdrop-filter: blur(10px); /* Матовое стекло для модального окна */
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
@@ -647,7 +645,7 @@ main {
   justify-content: center;
   align-items: center;
   margin-bottom: 20px;
-  min-height: 250px; /* Высота для загрузки QR */
+  min-height: 250px;
   background-color: var(--color-white);
   padding: 15px;
   border-radius: 15px;
@@ -683,7 +681,7 @@ main {
 .file-upload-card {
   position: relative;
 }
-/* File Upload Section */
+
 .file-upload-area {
   border: 2px dashed var(--color-secondary);
   border-radius: 15px;
@@ -693,8 +691,7 @@ main {
   text-align: center;
   cursor: pointer;
   transition: background-color 0.3s ease, border-color 0.3s ease;
-  background-color: rgba(255, 255, 255, 0.6);
-  background-color: rgba(162, 155, 254, 0.1); /* Легкий эффект при наведении/перетаскивании */
+  background-color: rgba(162, 155, 254, 0.1);
 }
 
 .upload-icon-wrap {
@@ -703,6 +700,7 @@ main {
   width: 100%;
   margin-bottom: 14px;
 }
+
 .upload-icon {
   opacity: 0.7;
   width: 52px;
@@ -710,7 +708,7 @@ main {
 
 .file-upload-area:hover,
 .file-upload-area.dragover {
-  background-color: rgba(162, 155, 254, 0.2); /* Легкий эффект при наведении/перетаскивании */
+  background-color: rgba(162, 155, 254, 0.2);
   border-color: var(--color-primary);
 }
 
@@ -742,30 +740,30 @@ main {
 }
 
 .upload-status {
-  margin-top: 20px; /* Отступ сверху */
+  margin-top: 20px;
   padding: 10px 15px;
   border-radius: 15px;
   font-weight: 600;
   text-align: center;
-  opacity: 0; /* Изначально скрыт */
-  max-height: 0; /* Изначально 0 высота */
-  overflow: hidden; /* Скрываем содержимое */
-  transition: opacity 0.4s ease, max-height 0.4s ease; /* Плавное появление */
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.4s ease, max-height 0.4s ease;
 }
 
 .upload-status.visible {
   opacity: 1;
-  max-height: 100px; /* Достаточная высота для отображения */
+  max-height: 100px;
 }
 
 .upload-status.success {
-  background-color: rgba(0, 184, 148, 0.1); /* Полупрозрачный зеленый */
+  background-color: rgba(0, 184, 148, 0.1);
   color: var(--color-success);
   border: 1px solid rgba(0, 184, 148, 0.3);
 }
 
 .upload-status.error {
-  background-color: rgba(255, 118, 117, 0.1); /* Полупрозрачный красный */
+  background-color: rgba(255, 118, 117, 0.1);
   color: var(--color-danger);
   border: 1px solid rgba(255, 118, 117, 0.3);
 }
@@ -779,10 +777,11 @@ main {
   color: var(--color-white);
   transition: 0.3s;
 }
+
 #purge-clients-btn:hover {
   background-color: var(--color-danger-dark);
 }
-/* Select Wrapper */
+
 .select-wrapper {
   position: relative;
   margin-top: 20px;
@@ -793,11 +792,13 @@ main {
 .select-wrapper select {
   width: 100%;
   padding: 12px 15px;
-  padding-right: 40px; /* Место для стрелки */
-  border: 1px solid var(--color-border-light);
-  border-radius: 15px; /* Закругленные */
+  padding-right: 40px;
+  border: 2px solid var(--color-primary);
+  border-radius: 15px;
   background-color: rgba(255, 255, 255, 0.7);
-  appearance: none; /* Убрать дефолтную стрелку */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
   font-size: 1em;
   color: var(--color-text);
   cursor: pointer;
@@ -824,7 +825,6 @@ main {
   pointer-events: none;
 }
 
-/* Radio Group */
 .option-group {
   margin-top: 40px;
 }
@@ -839,7 +839,7 @@ main {
 .radio-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px; /* Увеличил отступы */
+  gap: 12px;
 }
 
 .radio-group input[type="radio"] {
@@ -847,16 +847,16 @@ main {
 }
 
 .radio-group label {
-  background-color: var(--color-medium-light-gray); /* Светлый полупрозрачный фон */
+  background-color: var(--color-medium-light-gray);
   color: var(--color-text);
   padding: 10px 20px;
-  border-radius: 12px; /* Закругленные */
+  border-radius: 12px;
   cursor: pointer;
   font-weight: 500;
   transition: all 0.3s ease;
   border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 2px 5px var(--color-shadow-light);
-  flex-grow: 1; /* Чтобы кнопки занимали доступное место */
+  flex-grow: 1;
   text-align: center;
   min-width: 90px;
 }
@@ -865,11 +865,10 @@ main {
   background-color: var(--color-primary);
   color: var(--color-white);
   border-color: var(--color-primary-dark);
-  /* box-shadow: 0 4px 10px var(--color-primary-dark); */
 }
 
 .radio-group label:hover {
-  background-color: rgba(162, 155, 254, 0.2); /* Легкий эффект при наведении */
+  background-color: rgba(162, 155, 254, 0.2);
 }
 
 .radio-group input[type="radio"]:checked + label:hover {
@@ -877,7 +876,7 @@ main {
 }
 
 .risk-plate {
-  background-color: rgba(253, 203, 110, 0.15); /* Полупрозрачный желтый */
+  background-color: rgba(253, 203, 110, 0.15);
   color: var(--color-warning);
   padding: 12px 18px;
   border-radius: 15px;
@@ -890,13 +889,11 @@ main {
 }
 
 .risk-plate .icon-warning {
-  /* Иконка предупреждения */
   color: var(--color-warning);
   font-size: 1.2em;
   margin-top: 2px;
 }
 
-/* Message Template */
 textarea {
   width: 100%;
   padding: 15px;
@@ -936,6 +933,7 @@ textarea:focus {
   font-size: 12px;
   margin-top: 4px;
 }
+
 .msg-counter.over {
   color: #d33;
   font-weight: 600;
@@ -943,16 +941,16 @@ textarea:focus {
 
 .emoji-wrapper {
   border-radius: 12px;
-  overflow: hidden; /* обрежет углы внутри */
+  overflow: hidden;
 }
 
 #emoji-picker {
   position: fixed;
-  bottom: calc(var(--bottom-bar-h) - 156px);
+  bottom: calc(var(--bottom-bar-h) - 142px);
   z-index: 1000;
   max-height: 60vh;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  display: none; /* по умолчанию скрыт */
+  display: none;
 }
 
 #emoji-btn {
@@ -960,18 +958,18 @@ textarea:focus {
   color: var(--color-white);
   transition: 0.3s;
 }
+
 #emoji-btn:hover {
   background-color: var(--color-primary-dark);
 }
 
-/* Fixed Bottom Bar (Progress & Controls) */
 .fixed-bottom-bar {
   position: fixed;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  background-color: rgba(255, 255, 255, 0.9); /* Почти непрозрачный белый */
+  background-color: rgba(255, 255, 255, 0.9);
   padding: 20px 30px;
   box-shadow: 0 -5px 20px var(--color-shadow-medium);
   border-top-left-radius: 20px;
@@ -980,16 +978,18 @@ textarea:focus {
   flex-direction: column;
   align-items: center;
   gap: 20px;
-  backdrop-filter: blur(10px); /* Матовое стекло */
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255, 255, 255, 0.5);
   z-index: 999;
   max-width: 1000px;
 }
 
 .fixed-bottom-bar .status-indicator {
-  display: block; /* текст "Статус:" и значение остаются в одной строке */
+  display: block;
   line-height: 1.35;
 }
+
 .send-info-wrap {
   font-size: 1.2rem;
   display: flex;
@@ -999,29 +999,26 @@ textarea:focus {
 }
 
 .fixed-bottom-bar .next-send-row {
-  display: block; /* переносим на новую строку */
+  display: block;
   margin-top: 4px;
   font-size: 0.95em;
   color: var(--color-dark-gray);
   opacity: 0.9;
 }
 
-/* 2) Цвета статуса */
 .fixed-bottom-bar #overall-status-text.status-text-ready {
-  color: var(--color-success); /* "Готов" — зелёный */
+  color: var(--color-success);
 }
 
-/* поддержим оба варианта класса для "В процессе" */
 .fixed-bottom-bar #overall-status-text.status-text-running,
 .fixed-bottom-bar #overall-status-text.status-text-sending {
-  color: var(--color-primary); /* "В процессе" — фиолетовый */
+  color: var(--color-primary);
 }
 
-/* "Не готов" — когда нет классов ready/running */
 .fixed-bottom-bar
   .status-indicator
   #overall-status-text:not(.status-text-ready):not(.status-text-running):not(.status-text-sending) {
-  color: var(--color-danger); /* красный */
+  color: var(--color-danger);
 }
 
 .fixed-bottom-bar .bar-title {
@@ -1031,7 +1028,7 @@ textarea:focus {
   flex-wrap: wrap;
   gap: 15px;
   width: 100%;
-  max-width: 860px; /* Выравнивание по основному контенту */
+  max-width: 860px;
   font-size: 1.4em;
   font-weight: 700;
   color: var(--color-heading);
@@ -1062,14 +1059,14 @@ textarea:focus {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  max-width: 860px; /* Выравнивание по основному контенту */
+  max-width: 860px;
   gap: 20px;
-  flex-wrap: wrap; /* Для адаптивности */
+  flex-wrap: wrap;
 }
 
 .progress-info {
   flex-grow: 1;
-  min-width: 300px; /* Чтобы не сжимался слишком сильно */
+  min-width: 300px;
 }
 
 #progress-bar-container {
@@ -1113,7 +1110,7 @@ textarea:focus {
 
 .count-item {
   text-align: center;
-  flex-basis: calc(25% - 10px); /* 4 элемента в ряд, с учетом gap */
+  flex-basis: calc(25% - 10px);
   min-width: 60px;
 }
 
@@ -1142,13 +1139,12 @@ textarea:focus {
   min-width: 150px;
 }
 
-/* Красная плашка для пауз/тихих часов */
 .alert-banner {
   width: 100%;
   border-radius: 8px;
   padding: 12px 14px;
   margin-top: 12px;
-  display: none; /* управляется из JS */
+  display: none;
 }
 
 .alert-banner .alert-content {
@@ -1174,30 +1170,21 @@ textarea:focus {
   font-size: 18px;
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
   body {
     padding-bottom: 46vh;
   }
-
   .header-container h1 {
     font-size: 1.8em;
   }
-
-  .header-container .btn-logout {
-    align-self: flex-end; /* Кнопка выйти вправо */
-  }
-
   main {
     padding: 0 15px;
     gap: 20px;
   }
-
   .card {
     padding: 20px;
     border-radius: 20px;
   }
-
   .card h2 {
     font-size: 1.4em;
     flex-direction: column;
@@ -1205,72 +1192,58 @@ textarea:focus {
     gap: 10px;
     margin-bottom: 15px;
   }
-
   .whatsapp-auth-buttons {
     flex-direction: column;
   }
-
   .file-upload-area {
     padding: 20px;
   }
-
   .select-wrapper {
     max-width: 100%;
   }
-
   .select-wrapper .select-arrow {
     right: 15px;
   }
-
   .radio-group {
     flex-direction: column;
     gap: 8px;
   }
-
   .radio-group label {
     padding: 10px 15px;
     min-width: unset;
   }
-
   .fixed-bottom-bar {
     padding: 15px 20px;
     border-top-left-radius: 15px;
     border-top-right-radius: 15px;
     gap: 15px;
   }
-
   .fixed-bottom-bar .bar-title {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
     font-size: 1.2em;
   }
-
   .fixed-bottom-bar .status-indicator {
     font-size: 0.85em;
   }
-
   .progress-and-controls {
     flex-direction: column;
     gap: 20px;
     align-items: stretch;
   }
-
   .counts-display {
     flex-wrap: wrap;
     justify-content: center;
     gap: 10px;
   }
-
   .count-item {
-    flex-basis: calc(50% - 10px); /* Два элемента в ряд */
+    flex-basis: calc(50% - 10px);
   }
-
   .fixed-bottom-bar .controls {
     flex-direction: column;
     width: 100%;
   }
-
   textarea {
     min-height: 120px;
   }
@@ -1286,7 +1259,6 @@ textarea:focus {
   }
 }
 
-/* Busy (campaign) state */
 body.campaign-active main {
   opacity: 0.5;
   pointer-events: none;
@@ -1294,7 +1266,6 @@ body.campaign-active main {
   transition: opacity 0.2s ease;
 }
 
-/* Оставляем хедер и нижнюю панель активными и непрозрачными */
 body.campaign-active .header-container,
 body.campaign-active .fixed-bottom-bar {
   opacity: 1;
@@ -1306,25 +1277,29 @@ body.campaign-active .fixed-bottom-bar {
   margin-top: 8px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #fff7e6; /* мягкий жёлтый */
+  background: #fff7e6;
   border: 1px solid #ffe2a1;
   color: #8a6800;
   font-size: 14px;
   line-height: 1.4;
 }
+
 .campaign-notice i {
   margin-right: 8px;
 }
+
 .campaign-notice.info {
   background: #eaf5ff;
   border-color: #b7defe;
   color: #0b5ea8;
 }
+
 .campaign-notice.warn {
   background: #fff7e6;
   border-color: #ffe2a1;
   color: #8a6800;
 }
+
 .campaign-notice.pause {
   background: #f2f2f2;
   border-color: #e0e0e0;
@@ -1363,4 +1338,160 @@ button:disabled,
   background-color: var(--color-success-dark);
   transform: translateY(-2px);
   box-shadow: 0 6px 15px var(--color-shadow-medium);
+}
+
+.btn-black {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+.btn-black:hover:not(:disabled):not(.is-disabled) {
+  background-color: var(--color-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px var(--color-shadow-medium);
+}
+
+.blacklist-input-row {
+  display: grid;
+  grid-template-columns: 1fr max-content;
+  gap: 12px;
+  align-items: center;
+}
+
+.blacklist-input-row .input {
+  flex: 1;
+  padding: 12px 15px;
+  height: 48px;
+  line-height: 48px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.9);
+  font-size: 1em;
+  color: var(--color-text);
+  box-shadow: inset 0 1px 3px var(--color-shadow-light);
+}
+
+.blacklist-input-row .input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+}
+
+.blacklist-input-row .btn {
+  height: 48px;
+  padding: 0 18px;
+  margin-bottom: 10px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blacklist-table th,
+.blacklist-table td {
+  vertical-align: middle;
+}
+
+.blacklist-scroll {
+  max-height: 60vh;
+  overflow: auto;
+  margin-top: 12px;
+  background: var(--color-white);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.blacklist-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.blacklist-table thead th {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  background: #f8f8fb;
+  color: var(--color-heading);
+  font-weight: 600;
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-medium-gray);
+  z-index: 1;
+}
+
+.blacklist-table tbody tr {
+  height: 56px;
+}
+
+.blacklist-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #eee;
+  word-wrap: break-word;
+}
+
+.blacklist-table .col-actions {
+  width: 150px;
+  text-align: right;
+}
+
+.blacklist-table .col-actions .btn {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.blacklist-empty,
+.blacklist-loader {
+  padding: 16px;
+  text-align: center;
+  color: var(--color-dark-gray);
+}
+
+.blacklist-remove-btn {
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 0.8em;
+  border: none;
+  transition: 0.3s;
+}
+
+.blacklist-remove-btn:hover {
+  cursor: pointer;
+}
+
+body.campaign-active #blacklist-card,
+body.campaign-active #blacklist-modal .modal-content {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+#blacklist-modal .modal-content {
+  padding: 24px 28px;
+}
+
+#blacklist-hint {
+  min-height: 20px;
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+
+#blacklist-hint.info {
+  color: var(--color-info);
+}
+#blacklist-hint.warn {
+  color: var(--color-danger);
+}
+#blacklist-hint.error {
+  color: var(--color-danger-dark);
+}
+
+emoji-picker {
+  border-radius: 12px;
+  overflow: hidden;
+  -webkit-clip-path: inset(0 round 10px);
+  clip-path: inset(0 round 10px);
 }
