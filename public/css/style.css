@@ -45,7 +45,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-bottom: 28vh;
+  padding-bottom: 30vh;
 }
 
 body.modal-open {
@@ -74,7 +74,7 @@ body.login-page {
 
 .login-container h2 {
   font-size: 1.85em;
-  color: var(--color-heading);
+  color: var(--color-primary);
   margin-bottom: 4px;
   font-weight: 700;
   text-shadow: 1px 1px 2px var(--color-shadow-light);
@@ -194,27 +194,9 @@ body.login-page {
   text-decoration: underline;
 }
 
-@media (max-width: 500px) {
-  .login-container {
-    width: 78vw;
-  }
-  .login-container form {
-    padding: 30px 20px;
-    border-radius: 15px;
-  }
-  .login-container h2 {
-    font-size: 1.7em;
-    margin-bottom: 25px;
-  }
-  .btn {
-    font-size: 1em;
-    padding: 10px 20px;
-  }
-}
-
 .header-container {
   margin: 0 auto;
-  max-width: 720px;
+  max-width: 680px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -224,7 +206,7 @@ body.login-page {
 }
 
 .header-container h1 {
-  font-size: 1.8em;
+  font-size: 1.7em;
   color: var(--color-heading);
   font-weight: 700;
   text-shadow: 1px 1px 2px var(--color-shadow-light);
@@ -290,7 +272,7 @@ main {
   background-color: var(--color-light-gray);
   border-radius: 20px;
   padding: 30px;
-  box-shadow: inset 0 0 8px var(--color-shadow-medium);
+  box-shadow: inset 0 0 6px var(--color-shadow-medium);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   border: 1.5px solid var(--color-white);
@@ -571,16 +553,6 @@ main {
 
 .modal-content-upload .close-button:hover {
   color: var(--color-danger);
-}
-
-@media (max-width: 640px) {
-  .howto-modal__dialog {
-    margin: 12px;
-    max-height: calc(100vh - 24px);
-  }
-  .howto-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .modal {
@@ -940,6 +912,7 @@ textarea:focus {
 }
 
 .emoji-wrapper {
+  position: relative;
   border-radius: 12px;
   overflow: hidden;
 }
@@ -1103,7 +1076,7 @@ textarea:focus {
 .counts-display {
   display: flex;
   justify-content: space-around;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   margin-top: 10px;
 }
@@ -1129,7 +1102,7 @@ textarea:focus {
 
 .fixed-bottom-bar .controls {
   display: flex;
-  gap: 15px;
+  gap: 14px;
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -1168,95 +1141,6 @@ textarea:focus {
 
 .alert-danger i {
   font-size: 18px;
-}
-
-@media (max-width: 768px) {
-  body {
-    padding-bottom: 46vh;
-  }
-  .header-container h1 {
-    font-size: 1.8em;
-  }
-  main {
-    padding: 0 15px;
-    gap: 20px;
-  }
-  .card {
-    padding: 20px;
-    border-radius: 20px;
-  }
-  .card h2 {
-    font-size: 1.4em;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    margin-bottom: 15px;
-  }
-  .whatsapp-auth-buttons {
-    flex-direction: column;
-  }
-  .file-upload-area {
-    padding: 20px;
-  }
-  .select-wrapper {
-    max-width: 100%;
-  }
-  .select-wrapper .select-arrow {
-    right: 15px;
-  }
-  .radio-group {
-    flex-direction: column;
-    gap: 8px;
-  }
-  .radio-group label {
-    padding: 10px 15px;
-    min-width: unset;
-  }
-  .fixed-bottom-bar {
-    padding: 15px 20px;
-    border-top-left-radius: 15px;
-    border-top-right-radius: 15px;
-    gap: 15px;
-  }
-  .fixed-bottom-bar .bar-title {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    font-size: 1.2em;
-  }
-  .fixed-bottom-bar .status-indicator {
-    font-size: 0.85em;
-  }
-  .progress-and-controls {
-    flex-direction: column;
-    gap: 20px;
-    align-items: stretch;
-  }
-  .counts-display {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-  }
-  .count-item {
-    flex-basis: calc(50% - 10px);
-  }
-  .fixed-bottom-bar .controls {
-    flex-direction: column;
-    width: 100%;
-  }
-  textarea {
-    min-height: 120px;
-  }
-}
-
-@media (max-width: 590px) {
-  .header-container {
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding: 15px;
-    margin-top: 10px;
-  }
 }
 
 body.campaign-active main {
@@ -1494,4 +1378,156 @@ emoji-picker {
   overflow: hidden;
   -webkit-clip-path: inset(0 round 10px);
   clip-path: inset(0 round 10px);
+}
+
+@media (max-width: 768px) {
+  body {
+    padding-bottom: 36vh;
+  }
+  .header-container h1 {
+    font-size: 1.6em;
+  }
+  main {
+    padding: 0 15px;
+    gap: 20px;
+  }
+  .card {
+    padding: 20px;
+    border-radius: 20px;
+  }
+  .card h2 {
+    font-size: 1.4em;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  .whatsapp-auth-buttons {
+    flex-direction: column;
+  }
+  .file-upload-area {
+    padding: 20px;
+  }
+  .select-wrapper {
+    max-width: 100%;
+  }
+  .select-wrapper .select-arrow {
+    right: 15px;
+  }
+  .radio-group {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .radio-group label {
+    padding: 10px 15px;
+    min-width: unset;
+  }
+  .fixed-bottom-bar {
+    padding: 15px 20px;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+    gap: 15px;
+  }
+  .fixed-bottom-bar .bar-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 1.2em;
+  }
+  .fixed-bottom-bar .status-indicator {
+    font-size: 0.85em;
+  }
+  .progress-and-controls {
+    flex-direction: column;
+    gap: 4px;
+    align-items: stretch;
+  }
+  .counts-display {
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 10px;
+  }
+  .count-item {
+    flex-basis: calc(50% - 10px);
+  }
+  .fixed-bottom-bar .controls {
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+  }
+  textarea {
+    min-height: 120px;
+  }
+}
+
+@media (max-width: 640px) {
+  .howto-modal__dialog {
+    margin: 12px;
+    max-height: calc(100vh - 24px);
+  }
+  .howto-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 590px) {
+  .header-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 15px;
+    margin-top: 10px;
+  }
+}
+
+@media (max-width: 500px) {
+  html {
+    font-size: 14px;
+  }
+  .login-container {
+    width: 96vw;
+  }
+  .login-container form {
+    padding: 30px 20px;
+    border-radius: 15px;
+  }
+  .login-container h2 {
+    font-size: 1.7em;
+    margin-bottom: 25px;
+  }
+  .btn {
+    font-size: 1em;
+    padding: 10px 20px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .howto-modal__dialog {
+    padding: 16px;
+    width: 94%;
+  }
+  .modal-content-upload {
+    padding: 10px;
+    width: 100%;
+  }
+  #emoji-picker {
+    bottom: calc(var(--bottom-bar-h) - 184px);
+  }
+  .fixed-bottom-bar {
+    gap: 8px;
+  }
+  #progress-bar-container {
+    margin-bottom: 0;
+  }
+  .counts-display {
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+  .fixed-bottom-bar .controls {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
 }

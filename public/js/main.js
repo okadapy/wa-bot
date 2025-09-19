@@ -242,6 +242,15 @@ document.addEventListener("DOMContentLoaded", () => {
     noticeBox.style.display = "none";
   }
 
+  const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+  function scrollToBottomBar() {
+    if (IS_MOBILE) return; // на мобильных не скроллим страницу
+    if (bottomBar?.scrollIntoView) {
+      bottomBar.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }
+
   // ====== BLACKLIST STATE ======
   let blPage = 0;
   const BL_PAGE_SIZE = 25;
@@ -495,14 +504,107 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  emojiBtn?.addEventListener("click", () => {
+  let isEmojiOpen = false;
+
+  const EMOJI_OPEN_LABEL = "Выбрать\u00A0эмодзи";
+  const EMOJI_CLOSE_LABEL = "Закрыть";
+
+  function fixEmojiBtnWidth(btn, labels) {
+    if (!btn) return;
+    const probe = document.createElement("span");
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    probe.style.whiteSpace = "nowrap";
+    probe.style.pointerEvents = "none";
+    probe.className = btn.className;
+    probe.style.padding = getComputedStyle(btn).padding;
+    probe.style.font = getComputedStyle(btn).font;
+    document.body.appendChild(probe);
+
+    let max = 0;
+    for (const txt of labels) {
+      probe.textContent = txt;
+      max = Math.max(max, probe.offsetWidth);
+    }
+    document.body.removeChild(probe);
+    btn.style.width = `${Math.ceil(max)}px`;
+  }
+
+  function updateEmojiBtnState() {
+    if (!emojiBtn) return;
+    if (isEmojiOpen) {
+      emojiBtn.textContent = EMOJI_CLOSE_LABEL;
+      emojiBtn.setAttribute("aria-pressed", "true");
+      // перекрашиваем поверх #emoji-btn (у ID-селектора выше специфичность)
+      emojiBtn.style.backgroundColor = "var(--color-danger)";
+    } else {
+      emojiBtn.textContent = EMOJI_OPEN_LABEL;
+      emojiBtn.setAttribute("aria-pressed", "false");
+      emojiBtn.style.backgroundColor = ""; // вернёт основной цвет из CSS
+    }
+  }
+
+  fixEmojiBtnWidth(emojiBtn, [EMOJI_OPEN_LABEL, EMOJI_CLOSE_LABEL]);
+  updateEmojiBtnState();
+  function toggleEmojiPicker() {
     if (!emojiPicker) return;
     const willShow = emojiPicker.style.display !== "block";
     emojiPicker.style.display = willShow ? "block" : "none";
 
-    if (willShow) {
-      scrollToBottomBar();
-      msgTemplate?.focus();
+    if (msgTemplate) {
+      // держим фокус на textarea, не скролля страницу
+      try {
+        msgTemplate.focus({ preventScroll: true });
+      } catch (_) {
+        msgTemplate.focus();
+      }
+    }
+    if (willShow && !IS_MOBILE) scrollToBottomBar();
+  }
+
+  function openEmojiPicker() {
+    if (!emojiPicker) return;
+    emojiPicker.style.display = "block";
+    isEmojiOpen = true;
+    updateEmojiBtnState();
+    if (msgTemplate && !IS_MOBILE) {
+      try {
+        msgTemplate.focus({ preventScroll: true });
+      } catch (_) {
+        msgTemplate.focus();
+      }
+    }
+  }
+
+  function closeEmojiPicker() {
+    if (!emojiPicker) return;
+    emojiPicker.style.display = "none";
+    isEmojiOpen = false;
+    updateEmojiBtnState();
+    if (msgTemplate && !IS_MOBILE) {
+      try {
+        msgTemplate.focus({ preventScroll: true });
+      } catch (_) {
+        msgTemplate.focus();
+      }
+    }
+  }
+
+  // не даём кнопке отобрать фокус у textarea
+  emojiBtn?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    toggleEmojiPicker();
+  });
+
+  function toggleEmojiPicker() {
+    isEmojiOpen ? closeEmojiPicker() : openEmojiPicker();
+  }
+
+  document.addEventListener("pointerdown", (e) => {
+    if (!isEmojiOpen) return;
+    const t = e.target;
+    if (emojiPicker && !emojiPicker.contains(t) && t !== emojiBtn) {
+      closeEmojiPicker();
     }
   });
 
@@ -515,13 +617,16 @@ document.addEventListener("DOMContentLoaded", () => {
       msgTemplate.value = v.slice(0, start) + emoji + v.slice(end);
       const pos = start + emoji.length;
       msgTemplate.selectionStart = msgTemplate.selectionEnd = pos;
-      msgTemplate.focus();
     } else {
       msgTemplate.value += emoji;
     }
 
+    try {
+      msgTemplate.focus({ preventScroll: true });
+    } catch (_) {
+      msgTemplate.focus();
+    }
     msgTemplate.dispatchEvent(new Event("input"));
-    emojiPicker.style.display = "none";
   });
 
   // ====== ЛОГИКА ГОТОВНОСТИ UI ======
