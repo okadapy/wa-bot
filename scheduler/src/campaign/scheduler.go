@@ -45,6 +45,7 @@ type SendMessageRequest struct {
 type SendMessageRequestPausingState struct {
 	SendMessageRequest
 	Pausing bool `json:"pausing"`
+	Done    bool `json:"done"`
 }
 
 type Worker struct {
@@ -94,7 +95,7 @@ func (s *Scheduler) Start(c *Campaign) {
 	}
 
 	// TODO: Стереть в проде нахуй! Тут только для тестов!!!
-	c.MaxDaily = 1
+	c.MaxDaily = 2
 	c.MaxMsg = 2
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -272,6 +273,8 @@ func (w *Worker) sendMessage() error {
 
 	client := w.campaign.Clients[w.currentID]
 	msgText := strings.ReplaceAll(w.campaign.MsgText, "((клиент))", client.Name)
+	isLastMessage := w.currentID == len(w.campaign.Clients)-1 // Проверяем, последнее ли это сообщение
+
 	w.mu.Unlock()
 
 	request := SendMessageRequestPausingState{
@@ -281,10 +284,13 @@ func (w *Worker) sendMessage() error {
 			MsgText:     msgText,
 		},
 		Pausing: w.hasReachedLimits(),
+		Done:    isLastMessage,
 	}
 
-	w.logger.Printf("info: sending message for campaign %d, pausing state? %t", w.campaign.ID, request.Pausing)
+	w.logger.Printf("info: sending message for campaign %d, pausing state? %t, done? %t",
+		w.campaign.ID, request.Pausing, request.Done)
 
+	// Остальная часть метода без изменений...
 	body, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("marshal failed: %w", err)

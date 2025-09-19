@@ -1,6 +1,6 @@
 
 version: '3.8'
-name: "wa-bot-scheduler-v2"
+name: "wa-bot-scheduler-v3"
 services:
   app:
     build:
