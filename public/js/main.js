@@ -57,6 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const fileHint = document.getElementById("file-upload-hint");
   const fileNameDisplay = document.getElementById("fileNameDisplay");
   const uploadStatusIcon = document.getElementById("upload-status-icon");
+  const purgeInfoForDelete = document.querySelector(".info-text_for-delete");
   const purgeBtn = document.getElementById("purge-clients-btn");
   const purgeHint = document.getElementById("purge-clients-hint");
 
@@ -1441,6 +1442,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (purgeBtn) purgeBtn.style.display = "inline-flex";
         if (purgeHint) purgeHint.style.display = "block";
+        if (purgeInfoForDelete) purgeInfoForDelete.style.display = "block";
       } else {
         uploadCompleted = false;
         setIconConnected(uploadStatusIcon, false);
@@ -1449,6 +1451,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (labelTextEl) labelTextEl.textContent = "Выберите файл";
         if (purgeBtn) purgeBtn.style.display = "none";
         if (purgeHint) purgeHint.style.display = "none";
+        if (purgeInfoForDelete) purgeInfoForDelete.style.display = "none";
       }
       updateOverallReadyState();
     } catch (e) {}
