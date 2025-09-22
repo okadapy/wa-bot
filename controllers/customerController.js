@@ -717,31 +717,56 @@ module.exports = (app) => {
       console.log("[stopSending] session.customerId:", req?.session?.customerId);
       console.log("[stopSending] body:", JSON.stringify(req.body, null, 2));
     } catch (_) {}
-    const customerId = req.session ? req.session.customerId : null;
+
+    const customerId = req.session?.customerId;
     if (!customerId) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Пожалуйста, войдите в систему, чтобы запустить рассылку." });
+      return res.status(401).json({
+        success: false,
+        message: "Пожалуйста, войдите в систему, чтобы запустить рассылку.",
+      });
     }
 
-    const { campaignId } = req.body || {};
+    const { campaignId, force, paused } = req.body || {};
     if (!campaignId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Не найден идентификатор кампании. Обновите страницу и попробуйте снова." });
+      return res.status(400).json({
+        success: false,
+        message: "Не найден идентификатор кампании. Обновите страницу и попробуйте снова.",
+      });
+    }
+
+    if (paused === true && force !== true) {
+      return res.status(409).json({
+        success: false,
+        code: "PAUSED_NOT_STOPPED",
+        message:
+          "Сейчас активна пауза планировщика. Чтобы полностью остановить кампанию, повторите действие с параметром force:true.",
+      });
     }
 
     try {
       const { stopCampaignOnScheduler } = require("../services/schedulerClient");
-      const resp = await stopCampaignOnScheduler(campaignId, { reason: "manual_stop", requestedBy: customerId });
-      const io = app.get("io");
+
+      // отправляем в планировщик ровно «привычный» стоп без наших дополнительных полей
+      const schedulerResp = await stopCampaignOnScheduler(campaignId);
+
+      const io =
+        (req.app && req.app.get && req.app.get("io")) ||
+        (typeof app !== "undefined" && app.get && app.get("io")) ||
+        null;
       if (io) io.emit("campaign_stopped", { campaignId });
-      return res.status(200).json({ success: true, campaignId, scheduler: resp });
+
+      return res.status(200).json({
+        success: true,
+        campaignId,
+        scheduler: schedulerResp,
+      });
     } catch (e) {
       console.error("[stopSending] error:", e);
-      return res
-        .status(500)
-        .json({ success: false, message: "Не удалось остановить кампанию. Попробуйте позже.", details: e.message });
+      return res.status(500).json({
+        success: false,
+        message: "Не удалось остановить кампанию. Попробуйте позже.",
+        details: e?.message || String(e),
+      });
     }
   };
 

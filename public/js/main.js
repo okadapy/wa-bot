@@ -1583,13 +1583,39 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  function confirmForceStop() {
+    if (!window.Swal) return Promise.resolve(confirm("Кампания сейчас на паузе. Остановить принудительно?"));
+    return Swal.fire({
+      title: "Остановить принудительно?",
+      html: "Кампания находится на паузе планировщика. Остановить её окончательно?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Да, остановить",
+      cancelButtonText: "Отмена",
+      confirmButtonColor: "#d33",
+    }).then((r) => r.isConfirmed);
+  }
+
+  stopBtn?.removeEventListener && stopBtn.removeEventListener("click", () => {});
+
   stopBtn?.addEventListener("click", async () => {
     setDisabled(stopBtn, true);
+
+    let force = false;
     try {
-      const res = await fetch(URL_STOP, {
+      if (schedulerPauseActive === true) {
+        const ok = await confirmForceStop();
+        if (!ok) {
+          setDisabled(stopBtn, false);
+          return;
+        }
+        force = true;
+      }
+
+      const res = await fetch("/customer/stop-sending", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId }),
+        body: JSON.stringify({ campaignId, force }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) throw new Error(data?.message || `Ошибка остановки (${res.status})`);
@@ -1601,8 +1627,8 @@ document.addEventListener("DOMContentLoaded", () => {
       overallStatusText && overallStatusText.classList.remove("status-text-running");
       overallStatusText && overallStatusText.classList.add("status-text-ready");
       if (overallStatusText) overallStatusText.textContent = "Остановлено";
-      swal("Остановлено", "Рассылка остановлена", "info");
-      stopNotifyShown = true;
+      if (window.Swal)
+        Swal.fire("Остановлено", force ? "Принудительная остановка выполнена" : "Рассылка остановлена", "info");
 
       stopRiskPause();
       hideAlert();
