@@ -23,18 +23,13 @@ module.exports = (sequelize) => {
       },
       max_clients: {
         type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 15000,
+        allowNull: true,
+        defaultValue: null,
       },
       message_limit_daily: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0,
-      },
-      price: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        defaultValue: 0.0,
       },
       description: {
         type: DataTypes.TEXT,
