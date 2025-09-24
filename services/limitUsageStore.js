@@ -1,53 +1,47 @@
 // services/limitUsageStore.js
-const { sequelize } = require("../models");
-async function ensureRow(customerId) {
-  await sequelize.query(
-    `INSERT INTO customer_usage (customer_id, used_count)
-     VALUES (?, 0)
-     ON DUPLICATE KEY UPDATE customer_id = customer_id`,
-    { replacements: [customerId] }
-  );
-}
+const { QueryTypes } = require("sequelize");
 
-async function getUsage(customerId) {
-  const [rows] = await sequelize.query(`SELECT used_count FROM customer_usage WHERE customer_id = ?`, {
-    replacements: [customerId],
-  });
-  return rows && rows.length ? Number(rows[0].used_count) : 0;
-}
+module.exports = function initLimitUsageStore(sequelize) {
+  if (!sequelize || typeof sequelize.query !== "function") {
+    throw new Error("limitUsageStore: требуется инициализированный sequelize экземпляр");
+  }
 
-async function addUsage(customerId, delta = 1) {
-  // гарантируем строку
-  await ensureRow(customerId);
+  async function ensureRow(customerId) {
+    await sequelize.query(
+      `
+      INSERT INTO customer_usage (customer_id, used_count, period_start)
+      VALUES (?, 0, NOW())
+      ON DUPLICATE KEY UPDATE customer_id = customer_id
+      `,
+      { replacements: [customerId] }
+    );
+  }
 
-  // MySQL UPDATE не возвращает обновлённую строку — читаем отдельно
-  await sequelize.query(
-    `UPDATE customer_usage
-       SET used_count = used_count + ?, updated_at = CURRENT_TIMESTAMP
-     WHERE customer_id = ?`,
-    { replacements: [Number(delta) || 0, customerId] }
-  );
+  async function getUsage(customerId) {
+    const rows = await sequelize.query(`SELECT used_count FROM customer_usage WHERE customer_id = ? LIMIT 1`, {
+      replacements: [customerId],
+      type: QueryTypes.SELECT,
+    });
+    if (!rows || !rows.length) return 0;
+    return Number(rows[0].used_count) || 0;
+  }
 
-  // возвращаем актуальное значение
-  return getUsage(customerId);
-}
+  async function addUsage(customerId, delta) {
+    const d = Number(delta) || 0;
+    if (d <= 0) return;
+    await ensureRow(customerId);
+    await sequelize.query(
+      `UPDATE customer_usage SET used_count = used_count + ?, updated_at = NOW() WHERE customer_id = ?`,
+      { replacements: [d, customerId] }
+    );
+  }
 
-async function resetUsage(customerId) {
-  await ensureRow(customerId);
-  await sequelize.query(
-    `UPDATE customer_usage
-       SET used_count = 0,
-           period_start = CURRENT_TIMESTAMP,
-           updated_at   = CURRENT_TIMESTAMP
-     WHERE customer_id = ?`,
-    { replacements: [customerId] }
-  );
-  return 0;
-}
+  async function resetUsage(customerId) {
+    await sequelize.query(
+      `UPDATE customer_usage SET used_count = 0, period_start = NOW(), updated_at = NOW() WHERE customer_id = ?`,
+      { replacements: [customerId] }
+    );
+  }
 
-module.exports = {
-  ensureRow,
-  getUsage,
-  addUsage,
-  resetUsage,
+  return { ensureRow, getUsage, addUsage, resetUsage };
 };

@@ -490,7 +490,7 @@ module.exports = (app) => {
     }
   };
 
-  /** Запуск рассылки (через планировщик) — финальная версия + BLACKLIST */
+  /** Запуск рассылки (через планировщик) — финальная версия + BLACKLIST + safe usage-store init */
   exports.startSending = async (req, res) => {
     try {
       console.log("[startSending] invoked");
@@ -509,7 +509,6 @@ module.exports = (app) => {
 
     const { message, timezone, daily_limit, max_clients } = req.body || {};
 
-    console.log(max_clients);
     if (timezone == null || (typeof timezone === "string" && !timezone.trim())) {
       console.warn("[startSending] 400 no timezone");
       return res.status(400).json({ success: false, message: "Выберите часовой пояс в настройках перед запуском." });
@@ -527,16 +526,14 @@ module.exports = (app) => {
         .json({ success: false, message: "WhatsApp-клиент не подключен. Подключите его и попробуйте снова." });
     }
 
-    // === Новая логика таймзоны ===
     const tzNum = toTzNumber(timezone);
     if (tzNum == null || !Number.isFinite(tzNum)) {
       console.warn("[startSending] 400 bad timezone format:", timezone);
       return res.status(400).json({ success: false, message: "Некорректный формат часового пояса." });
     }
-    const tzUi = tzNumberToUiString(tzNum); // например, "+3" или "-5.5"
+    const tzUi = tzNumberToUiString(tzNum);
 
     try {
-      // 1) Собираем всех главных телефонов клиента
       const rows = await CustomerClientPhone.findAll({
         where: { customer_id: customerId, is_main: true },
         include: [{ model: CustomerClient, attributes: ["full_name"], where: { customer_id: customerId } }],
@@ -552,18 +549,14 @@ module.exports = (app) => {
 
       console.log(`[startSending] found clients with main phones: ${clients.length}`);
 
-      // 2) BLACKLIST: фильтруем перед отправкой в планировщик
+      // --- BLACKLIST (таблица phone_blacklist) ---
       try {
-        const rowsBL = await sequelize.query("SELECT phone FROM phone_blacklist", {
-          type: QueryTypes.SELECT,
-        });
-
+        const rowsBL = await sequelize.query("SELECT phone FROM phone_blacklist", { type: QueryTypes.SELECT });
         const blDigits = new Set(rowsBL.map((r) => stripDigits(r.phone)));
         const blLoose = new Set(rowsBL.map((r) => normPhoneLoose(r.phone)));
 
         let skipped = 0;
         const filtered = [];
-
         for (const c of clients) {
           const pDigits = stripDigits(c.phone);
           const pLoose = normPhoneLoose(c.phone.startsWith("+") ? c.phone : `+${c.phone}`);
@@ -574,14 +567,13 @@ module.exports = (app) => {
           }
           filtered.push(c);
         }
-
         if (skipped > 0) {
           console.log(`[startSending] blacklist filter applied: skipped ${skipped}, left ${filtered.length}`);
         }
         clients = filtered;
       } catch (e) {
         console.error("[startSending] blacklist check failed:", e?.message || e);
-        // продолжаем без фильтра, если таблицы нет/ошибка
+        // продолжаем без фильтра
       }
 
       if (!clients.length) {
@@ -591,7 +583,7 @@ module.exports = (app) => {
           .json({ success: false, message: "Список получателей пуст (все номера попали в blacklist)." });
       }
 
-      // 3) Лимиты (тариф/входные)
+      // --- Лимиты тарифа / входные ---
       let limitDaily = Number.isFinite(Number(daily_limit)) ? Number(daily_limit) : null;
       let limitMaxClients = Number.isFinite(Number(max_clients)) ? Number(max_clients) : null;
 
@@ -603,47 +595,72 @@ module.exports = (app) => {
             if (limitDaily == null) limitDaily = Number(tariff.message_limit_daily) || null;
             if (limitMaxClients == null) limitMaxClients = Number(tariff.max_clients) || null;
           }
-          if (limitMaxClients != null && Number(limitMaxClients) > 0) {
-            await ensureRow(customerId);
-            const used = await getUsage(customerId);
-            const remaining = Math.max(0, Number(limitMaxClients) - Number(used));
-
-            if (remaining <= 0) {
-              const io = req.app.get("io");
-              io && io.emit("campaign_limit_exhausted", { customerId, limit: Number(limitMaxClients), used });
-              return res.status(409).json({
-                success: false,
-                message: `Лимит тарифа исчерпан: ${used}/${limitMaxClients}. Перейдите на более высокий план.`,
-                limit: Number(limitMaxClients),
-                used,
-              });
-            }
-
-            if (clients.length > remaining) {
-              const allowed = remaining;
-              const trimmed = clients.length - allowed;
-              clients = clients.slice(0, allowed);
-
-              const io = req.app.get("io");
-              io &&
-                io.emit("campaign_trimmed_by_limit", {
-                  customerId,
-                  allowed,
-                  trimmed,
-                  limit: Number(limitMaxClients),
-                  used,
-                });
-            }
-          }
         }
       } catch (e) {
         console.warn("Не удалось получить тариф пользователя:", e.message);
       }
 
-      // 4) Payload в планировщик — уже ОТФИЛЬТРОВАННЫЕ клиенты
+      // --- SAFE init usage-store и применение max_clients ---
+      const getLimitStore = () => {
+        try {
+          // важный момент: сюда нужно передать ТВОЙ инициализированный sequelize (тот же, что у моделей)
+          // он у тебя уже доступен как глобальный sequelize в этом модуле; если у тебя он иначе — подставь свой.
+          const initStore = require("../services/limitUsageStore");
+          return initStore(sequelize);
+        } catch (e) {
+          console.warn("limitUsageStore init failed:", e.message);
+          return null;
+        }
+      };
+
+      if (limitMaxClients != null && Number(limitMaxClients) > 0) {
+        const store = getLimitStore();
+        if (store) {
+          const { ensureRow, getUsage } = store;
+          await ensureRow(customerId);
+          const used = await getUsage(customerId);
+          const remaining = Math.max(0, Number(limitMaxClients) - Number(used));
+
+          if (remaining <= 0) {
+            io && io.emit("campaign_limit_exhausted", { customerId, limit: Number(limitMaxClients), used });
+            return res.status(409).json({
+              success: false,
+              message: `Лимит тарифа исчерпан: ${used}/${limitMaxClients}. Перейдите на более высокий план.`,
+              limit: Number(limitMaxClients),
+              used,
+            });
+          }
+
+          let trimNotice = null;
+
+          if (clients.length > remaining) {
+            const allowed = remaining;
+            const trimmed = clients.length - allowed;
+            clients = clients.slice(0, allowed);
+            const notice = { customerId, allowed, trimmed, limit: Number(limitMaxClients), used };
+
+            const ioLocal = req.app.get("io");
+            ioLocal && ioLocal.emit("campaign_trimmed_by_limit", notice);
+
+            trimNotice = notice;
+            io &&
+              io.emit("campaign_trimmed_by_limit", {
+                customerId,
+                allowed,
+                trimmed,
+                limit: Number(limitMaxClients),
+                used,
+              });
+          }
+        } else {
+          console.warn("limitUsageStore unavailable — пропускаем срез по max_clients");
+        }
+      }
+
+      // --- Отправка в планировщик ---
       const payload = {
         customerId,
-        timezone: tzNum, // <=== В МИКРОСЕРВИС УХОДИТ ЧИСЛО, например 3 или -5.5
+        timezone: tzNum,
         clients,
         message: message,
         daily_limit: limitDaily ?? 100,
@@ -657,17 +674,6 @@ module.exports = (app) => {
       let resp;
       try {
         resp = await startCampaignOnScheduler(payload);
-        console.log(
-          "[scheduler] raw typeof:",
-          typeof resp,
-          Array.isArray(resp) ? "array" : resp && resp.constructor && resp.constructor.name
-        );
-        console.log("[scheduler] raw resp:", JSON.stringify(resp, null, 2));
-        console.log("[scheduler] fields:", {
-          campaignId_raw: resp && resp.campaignId,
-          campaign_id_raw: resp && resp.campaign_id,
-          id_raw: resp && resp.id,
-        });
       } catch (e) {
         console.error("[scheduler] ERROR /wh/campaign:", e?.message || e);
         if (e?.response) {
@@ -681,7 +687,6 @@ module.exports = (app) => {
       }
 
       const campaignId = resp?.campaignId || null;
-
       if (!campaignId) {
         console.error("[scheduler] ERROR: планировщик не вернул campaignId:", resp);
         return res.status(502).json({
@@ -692,15 +697,24 @@ module.exports = (app) => {
       }
 
       const { saveCampaignTimezoneDB } = require("../services/campaignStore");
-      // В БД/состоянии для удобства людей храним человекочитаемую строку (+3 / -5.5)
       await saveCampaignTimezoneDB(campaignId, tzUi, customerId);
 
-      if (io) io.emit("campaign_started", { campaignId, timezone: tzUi, total: clients.length });
+      io && io.emit("campaign_started", { campaignId, timezone: tzUi, total: clients.length });
 
       const { setOnStart } = require("../services/campaignStateStore");
       setOnStart({ customerId, campaignId, timezone: tzUi, message, total: clients.length });
 
-      return res.status(202).json({ success: true, campaignId, scheduled: true });
+      // --- УЧЁТ ИСПОЛЬЗОВАНИЯ: увеличиваем used_count на количество получателей этой кампании
+      try {
+        if (limitMaxClients != null && Number(limitMaxClients) > 0) {
+          const store = require("../services/limitUsageStore")(sequelize);
+          await store.addUsage(customerId, clients.length);
+        }
+      } catch (e) {
+        console.warn("addUsage failed (не критично):", e.message);
+      }
+
+      return res.status(202).json({ success: true, campaignId, scheduled: true, trimmed_notice: trimNotice || null });
     } catch (e) {
       console.error("[startSending] error:", e);
       return res
