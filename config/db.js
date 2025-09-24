@@ -1,13 +1,13 @@
 const { Sequelize } = require("sequelize");
 
 const sequelize = new Sequelize(
-  process.env.DB_DATABASE || "send_bot_dent_db", // Название вашей БД
-  process.env.DB_USER || "root", // Имя пользователя
-  process.env.DB_PASSWORD || "root", // Пароль
+  process.env.DB_DATABASE || "send_bot_dent_db",
+  process.env.DB_USER || "root",
+  process.env.DB_PASSWORD || "root",
   {
-    host: process.env.DB_HOST || "db", // Хост
-    port: process.env.DB_PORT || 3306, // Порт
-    dialect: "mysql", // Указываем диалект - MySQL
+    host: process.env.DB_HOST || "db",
+    port: process.env.DB_PORT || 3306, //3316
+    dialect: "mysql",
     logging: false,
     retry: {
       match: [
@@ -30,7 +30,7 @@ const sequelize = new Sequelize(
       max: 5, // Maximum retry attempts
     },
     define: {
-      timestamps: true, // Автоматическое управление created_at и updated_at
+      timestamps: true,
       underscored: true, // Использовать snake_case для имен столбцов
     },
     pool: {
@@ -44,14 +44,13 @@ const sequelize = new Sequelize(
 
 async function connectToDatabase() {
   try {
-    await sequelize.authenticate(); // Проверяем подключение
+    await sequelize.authenticate();
     console.log("Подключение к базе данных успешно установлено (Sequelize).");
-    return sequelize; // Возвращаем экземпляр Sequelize
+    return sequelize;
   } catch (err) {
     console.error("Ошибка подключения к базе данных (Sequelize):", err, typeof err);
     process.exit(1);
   }
 }
 
-// Экспортируем функцию, которая возвращает обещание с экземпляром Sequelize
 module.exports = connectToDatabase();

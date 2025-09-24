@@ -509,6 +509,7 @@ module.exports = (app) => {
 
     const { message, timezone, daily_limit, max_clients } = req.body || {};
 
+    console.log(max_clients);
     if (timezone == null || (typeof timezone === "string" && !timezone.trim())) {
       console.warn("[startSending] 400 no timezone");
       return res.status(400).json({ success: false, message: "Выберите часовой пояс в настройках перед запуском." });
@@ -551,11 +552,12 @@ module.exports = (app) => {
 
       console.log(`[startSending] found clients with main phones: ${clients.length}`);
 
-      // 2) BLACKLIST: фильтруем прямо здесь перед отправкой в планировщик
+      // 2) BLACKLIST: фильтруем перед отправкой в планировщик
       try {
-        const [rowsBL] = await sequelize.query("SELECT phone FROM blacklist WHERE customer_id = ?", {
-          replacements: [customerId],
+        const rowsBL = await sequelize.query("SELECT phone FROM phone_blacklist", {
+          type: QueryTypes.SELECT,
         });
+
         const blDigits = new Set(rowsBL.map((r) => stripDigits(r.phone)));
         const blLoose = new Set(rowsBL.map((r) => normPhoneLoose(r.phone)));
 
@@ -563,11 +565,8 @@ module.exports = (app) => {
         const filtered = [];
 
         for (const c of clients) {
-          // у нас в БД телефоны уже приведены к "79XXXXXXXXX" (только цифры, без '+')
           const pDigits = stripDigits(c.phone);
-          // и «слабую» нормализацию с плюсом — для сравнения со строками из БЛ вида "+7...", "00...", "8..."
           const pLoose = normPhoneLoose(c.phone.startsWith("+") ? c.phone : `+${c.phone}`);
-
           const inBL = (pDigits && blDigits.has(pDigits)) || (pLoose && blLoose.has(pLoose));
           if (inBL) {
             skipped++;
@@ -582,7 +581,7 @@ module.exports = (app) => {
         clients = filtered;
       } catch (e) {
         console.error("[startSending] blacklist check failed:", e?.message || e);
-        // продолжаем без фильтра, если таблицы нет или ошибка — по ТЗ валидации не требуем
+        // продолжаем без фильтра, если таблицы нет/ошибка
       }
 
       if (!clients.length) {

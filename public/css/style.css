@@ -9,7 +9,7 @@
   --color-danger-dark: #e66060;
   --color-warning: #fdcb6e;
   --color-info: #0984e3;
-  --color-light-gray: rgba(255, 255, 255, 0.7);
+  --color-light-gray: rgba(255, 255, 255, 0.5);
   --color-medium-light-gray: rgba(255, 255, 255, 0.5);
   --color-medium-gray: #e0e0e0;
   --color-dark-gray: #333;
@@ -40,7 +40,13 @@ html {
 }
 
 body {
-  background: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92)), url("/images/main-bg.jpg");
+  /* background: linear-gradient(rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.99)), url("/images/main-bg.jpg"); */
+  background-image: linear-gradient(to bottom right, rgba(108, 92, 231, 0.04), rgba(162, 155, 254, 0.04)),
+    linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url("/images/main-bg.jpg");
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-size: cover, cover, 520px;
+  background-position: center, center, top center;
+  background-attachment: scroll;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -287,7 +293,6 @@ main {
   align-items: center;
   justify-content: space-between;
   font-weight: 600;
-  background-color: var(--color-white);
   border-radius: 12px;
   padding: 4px 0;
   width: 100%;

@@ -1,5 +1,4 @@
-
-version: '3.8'
+version: "3.8"
 name: "wa-bot-scheduler-v3"
 services:
   app:
@@ -37,11 +36,11 @@ services:
     environment:
       MYSQL_DATABASE: ${DB_DATABASE}
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_TCP_PORT: ${DB_PORT}  # Явно указываем порт
+      MYSQL_TCP_PORT: ${DB_PORT} # Явно указываем порт
     ports:
-      - "3306:3306"  # Пробрасываем стандартный порт
+      - "3316:3316" # Пробрасываем стандартный порт
     volumes:
-      - mysql_data:/var/lib/mysql  # Корректный путь для MySQL
+      - mysql_data:/var/lib/mysql # Корректный путь для MySQL
       - ./models/migrations/up.sql:/docker-entrypoint-initdb.d/up.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
