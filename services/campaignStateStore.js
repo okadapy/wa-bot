@@ -19,7 +19,8 @@ function setOnStart({ customerId, campaignId, timezone, message, total }) {
 function bumpProgress({ customerId, ok }) {
   const snap = state.get(customerId);
   if (!snap) return;
-  if (ok) snap.sent += 1; else snap.failed += 1;
+  if (ok) snap.sent += 1;
+  else snap.failed += 1;
   snap.remaining = Math.max(0, (snap.total || 0) - (snap.sent || 0));
   snap.updatedAt = new Date().toISOString();
   state.set(customerId, snap);
@@ -33,8 +34,12 @@ function setStatus({ customerId, status }) {
   state.set(customerId, snap);
 }
 
+function clearState(customerId) {
+  state.delete(customerId);
+}
+
 function getStateForCustomer(customerId) {
   return state.get(customerId) || null;
 }
 
-module.exports = { setOnStart, bumpProgress, setStatus, getStateForCustomer };
+module.exports = { setOnStart, bumpProgress, setStatus, clearState, getStateForCustomer };

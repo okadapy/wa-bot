@@ -758,9 +758,18 @@ module.exports = (app) => {
 
     try {
       const { stopCampaignOnScheduler } = require("../services/schedulerClient");
+      const { setStatus, clearState } = require("../services/campaignStateStore");
 
-      // отправляем в планировщик ровно «привычный» стоп без наших дополнительных полей
+      // отправляем в планировщик «привычный» стоп
       const schedulerResp = await stopCampaignOnScheduler(campaignId);
+
+      // фиксируем локальное состояние (важно для обновления дашборда)
+      try {
+        setStatus({ customerId, status: "stopped" });
+        clearState(customerId);
+      } catch (e) {
+        console.warn("[stopSending] state cleanup warning:", e.message);
+      }
 
       const io =
         (req.app && req.app.get && req.app.get("io")) ||
