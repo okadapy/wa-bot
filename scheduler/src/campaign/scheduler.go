@@ -94,10 +94,6 @@ func (s *Scheduler) Start(c *Campaign) {
 		return
 	}
 
-	// TODO: Стереть в проде нахуй! Тут только для тестов!!!
-	c.MaxDaily = 2
-	c.MaxMsg = 2
-
 	ctx, cancel := context.WithCancel(context.Background())
 	worker := &Worker{
 		currentID: 0,
@@ -178,10 +174,9 @@ func (w *Worker) Stop() {
 }
 
 func (w *Worker) processBatch() {
-	// TODO: Раскомментить! Тут только для моих полуночных тестов!
-	//if !w.isWithinAllowedTime() {
-	//	return
-	//}
+	if !w.isWithinAllowedTime() {
+		return
+	}
 
 	w.checkDailyReset()
 
