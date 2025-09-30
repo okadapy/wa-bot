@@ -4,9 +4,6 @@ const path = require("path");
 const xlsx = require("xlsx");
 const whatsappService = require("../services/whatsappService");
 const { QueryTypes } = require("sequelize");
-
-const { ensureRow, getUsage } = require("../services/limitUsageStore");
-
 module.exports = (app) => {
   const db = app.get("db");
   const bl = require("../services/blacklistStore")(db.sequelize, QueryTypes);
@@ -505,8 +502,7 @@ module.exports = (app) => {
     }
 
     const customerId = req.session.customerId;
-    const io = app.get("io");
-
+    const io = req.app.get("io");
     const { message, timezone, daily_limit, max_clients } = req.body || {};
 
     if (timezone == null || (typeof timezone === "string" && !timezone.trim())) {
@@ -601,6 +597,7 @@ module.exports = (app) => {
       }
 
       // --- SAFE init usage-store и применение max_clients ---
+      let trimNotice = null;
       const getLimitStore = () => {
         try {
           // важный момент: сюда нужно передать ТВОЙ инициализированный sequelize (тот же, что у моделей)
@@ -631,26 +628,14 @@ module.exports = (app) => {
             });
           }
 
-          let trimNotice = null;
-
           if (clients.length > remaining) {
             const allowed = remaining;
             const trimmed = clients.length - allowed;
             clients = clients.slice(0, allowed);
-            const notice = { customerId, allowed, trimmed, limit: Number(limitMaxClients), used };
 
             const ioLocal = req.app.get("io");
-            ioLocal && ioLocal.emit("campaign_trimmed_by_limit", notice);
-
-            trimNotice = notice;
-            io &&
-              io.emit("campaign_trimmed_by_limit", {
-                customerId,
-                allowed,
-                trimmed,
-                limit: Number(limitMaxClients),
-                used,
-              });
+            trimNotice = { customerId, allowed, trimmed, limit: Number(limitMaxClients), used };
+            ioLocal && ioLocal.emit("campaign_trimmed_by_limit", trimNotice);
           }
         } else {
           console.warn("limitUsageStore unavailable — пропускаем срез по max_clients");
