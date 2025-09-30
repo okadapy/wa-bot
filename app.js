@@ -182,8 +182,8 @@ async function startServer() {
     });
 
     // 11) Запуск сервера
-    const port = process.env.PORT || 3000;
-    server.listen(port, () => {
+    const port = process.env.PORT || 3001;
+    server.listen(port, "0.0.0.0", () => {
       console.log(`Сервер запущен на http://localhost:${port}`);
     });
 

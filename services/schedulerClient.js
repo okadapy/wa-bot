@@ -1,7 +1,7 @@
 // services/schedulerClient.js
 const axios = require("axios");
 
-const BASE = process.env.SCHEDULER_BASE_URL || "http://scheduler:80";
+const BASE = process.env.SCHEDULER_BASE_URL || "http://scheduler:8080";
 const RESULT_URL = process.env.SCHEDULER_RESULT_URL || `${BASE}/wh/campaign/result`;
 
 function normalizeResponsePayload(raw) {

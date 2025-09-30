@@ -5,7 +5,7 @@ services:
     build:
       context: .
     ports:
-      - "3000:3000"
+      - "3001:3001"
     volumes:
       - wa-bot:/app
       - /app/node_modules
@@ -28,7 +28,7 @@ services:
       context: ./scheduler
     ports:
       - "2000:80"
-      - "80:80"
+      - "8080:80"
     command: go run .
 
   db:

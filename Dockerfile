@@ -16,5 +16,5 @@ COPY package*.json ./
 COPY . .
 
 # Expose application port
-EXPOSE 3000
+EXPOSE 3001
 

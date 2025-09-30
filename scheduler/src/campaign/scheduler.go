@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultSenderURL   = "http://app:3000/wh/send"
+	defaultSenderURL   = "http://app:3001/wh/send"
 	minCooldown        = 30 * time.Second
 	maxCooldown        = 160 * time.Second
 	allowedStartHour   = 10
